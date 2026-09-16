@@ -1,0 +1,28 @@
+# Python Virtual Environments
+venv/
+venv3/
+env/
+.env
+.venv
+
+# Python Bytecode & Cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# macOS metadata
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Temporary downloads / exports
+*.xlsx
+*.pdf
+scratch/
