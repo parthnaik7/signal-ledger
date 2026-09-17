@@ -8,7 +8,8 @@ datetime64, everything else as float).
 from __future__ import annotations
 
 import io
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from typing import Any
 
 import pandas as pd
 
@@ -85,7 +86,7 @@ def fetch_from_yahoo(ticker: str, years_back: int = 6) -> pd.DataFrame:
     if yf is None:
         raise DataFetchError("yfinance is not installed on the server.")
 
-    end = datetime.utcnow()
+    end = datetime.now(timezone.utc).replace(tzinfo=None)
     start = end - timedelta(days=365 * years_back + 30)
 
     try:

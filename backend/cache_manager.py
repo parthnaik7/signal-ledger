@@ -43,7 +43,7 @@ class IntelligentCacheManager:
     _instance: IntelligentCacheManager | None = None
     _lock = threading.Lock()
 
-    def __new__(cls) -> IntelligentCacheManager:
+    def __new__(cls, *args: Any, **kwargs: Any) -> IntelligentCacheManager:
         with cls._lock:
             if cls._instance is None:
                 cls._instance = super().__new__(cls)

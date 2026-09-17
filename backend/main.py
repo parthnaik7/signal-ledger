@@ -38,9 +38,12 @@ from session_manager import session_manager
 
 app = FastAPI(title="SignalLedger API")
 
+allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "*")
+allowed_origins = [o.strip() for o in allowed_origins_env.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins if allowed_origins else ["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -90,6 +93,10 @@ def _build_response(
     all_time_high: float | None = None,
     all_time_low: float | None = None,
 ) -> AnalysisResponse:
+    if df is None or df.empty:
+        raise HTTPException(status_code=400, detail="Historical dataset is empty.")
+    if "Date" not in df.columns or "Close" not in df.columns:
+        raise HTTPException(status_code=400, detail="Missing required columns ('Date', 'Close') in dataset.")
     df = df.sort_values("Date").reset_index(drop=True)
     current_year = int(df["Date"].max().year)
     current_year_df = df[df["Date"].dt.year == current_year]
@@ -305,14 +312,19 @@ def analyze(
 
 
 
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10 MB
+
+
 @app.post("/api/analyze/upload", response_model=AnalysisResponse)
 async def analyze_upload(
     file: UploadFile = File(...),
-    ticker: str = Query("UPLOAD"),
+    ticker: str = Query("UPLOAD", max_length=15),
     years: int = Query(5, ge=1, le=15),
     months: int = Query(12, ge=1, le=60),
 ):
     content = await file.read()
+    if len(content) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="File too large (maximum 10MB).")
     try:
         df = parse_uploaded_csv(content)
     except DataFetchError as exc:
@@ -321,6 +333,7 @@ async def analyze_upload(
     inferred_ticker = ticker
     if ticker == "UPLOAD" and file.filename:
         inferred_ticker = file.filename.split("-")[0].split(".")[0]
+    inferred_ticker = inferred_ticker.strip().upper()[:12] or "UPLOAD"
 
     return _build_response(df, inferred_ticker, source="upload", years=years, months=months)
 
@@ -335,6 +348,10 @@ def _get_live_quote_safe(ticker: str) -> dict:
 
 @app.post("/api/export/xlsx")
 def export_xlsx(payload: dict = Body(...)):
+    if not isinstance(payload, dict) or not payload.get("ticker"):
+        raise HTTPException(status_code=400, detail="Invalid payload: missing 'ticker'.")
+    if "yearly" not in payload or "monthly" not in payload:
+        raise HTTPException(status_code=400, detail="Invalid payload: missing analysis data.")
     live_quote = _get_live_quote_safe(payload.get("ticker", ""))
     content = build_xlsx(payload, live_quote)
     filename = f"{payload.get('ticker', 'stock')}_range_ledger.xlsx"
@@ -347,6 +364,10 @@ def export_xlsx(payload: dict = Body(...)):
 
 @app.post("/api/export/pdf")
 def export_pdf(payload: dict = Body(...)):
+    if not isinstance(payload, dict) or not payload.get("ticker"):
+        raise HTTPException(status_code=400, detail="Invalid payload: missing 'ticker'.")
+    if "yearly" not in payload or "monthly" not in payload:
+        raise HTTPException(status_code=400, detail="Invalid payload: missing analysis data.")
     live_quote = _get_live_quote_safe(payload.get("ticker", ""))
     content = build_pdf(payload, live_quote)
     filename = f"{payload.get('ticker', 'stock')}_range_ledger.pdf"

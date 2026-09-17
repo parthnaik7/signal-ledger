@@ -2360,7 +2360,7 @@ body {
 
 /* Override max-height for watchlist items list (JS sets inline height) */
 .watchlist-drawer .history-list {
-  max-height: 320px;   /* default; JS overrides with inline style */
+  max-height: 480px;   /* default; JS overrides with inline style */
   overflow-y: auto;
   flex-wrap: nowrap;
   flex-direction: column;

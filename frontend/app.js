@@ -143,6 +143,33 @@ function escapeHtml(str) {
     .replace(/'/g, "&#039;");
 }
 
+async function safeFetchJson(url, options = {}, timeoutMs = 25000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { ...options, signal: controller.signal });
+    clearTimeout(timer);
+    let data;
+    const contentType = res.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) {
+      data = await res.json();
+    } else {
+      const text = await res.text();
+      data = { detail: text || `HTTP ${res.status} ${res.statusText}` };
+    }
+    if (!res.ok) {
+      throw new Error((data && data.detail) || `Request failed with status ${res.status}`);
+    }
+    return data;
+  } catch (err) {
+    clearTimeout(timer);
+    if (err.name === "AbortError") {
+      throw new Error("Request timed out. The server or data provider took too long to respond.");
+    }
+    throw err;
+  }
+}
+
 function renderDropdown(suggestions) {
   if (!els.tickerDropdown) return;
   acSuggestions = suggestions;
@@ -348,6 +375,8 @@ function snapshotMetrics(analysis) {
     all_time_high:           analysis.all_time_high ?? null,
     diff_from_all_time_low_pct: analysis.diff_from_all_time_low_pct ?? null,
     diff_from_all_time_high_pct: analysis.diff_from_all_time_high_pct ?? null,
+    best_move_year_pct:      analysis.best_move_current_year?.pct_diff ?? null,
+    best_move_alltime_pct:   analysis.best_move_overall?.pct_diff ?? null,
     signal:                  sigInfo ? sigInfo.signal : null,
     signalReason:            sigInfo ? sigInfo.reason : null,
     refreshedAt:             Date.now(),
@@ -428,7 +457,7 @@ function fmtPct(v, sign = true) {
   return s + v.toLocaleString(undefined, { maximumFractionDigits: 1 }) + "%";
 }
 
-function buildMetricsRow(m) {
+function buildMetricsRow(m, ticker = "") {
   if (!m) {
     return `<div class="wl-metrics wl-metrics--empty">No data yet — click Refresh</div>`;
   }
@@ -441,6 +470,21 @@ function buildMetricsRow(m) {
   const highCls = highPct != null && highPct < 0 ? "wl-pill--neg" : "wl-pill--pos";
   const atlCls  = atlPct  != null && atlPct  > 0 ? "wl-pill--pos" : "";
   const athCls  = athPct  != null && athPct  < 0 ? "wl-pill--neg" : "wl-pill--pos";
+
+  let moveYr = m.best_move_year_pct ?? null;
+  if (moveYr == null && m.latest_low && m.latest_high && m.latest_low > 0) {
+    moveYr = ((m.latest_high - m.latest_low) / m.latest_low) * 100;
+  }
+  let moveAll = m.best_move_alltime_pct ?? null;
+
+  if (currentAnalysis && ticker && currentAnalysis.ticker === ticker) {
+    if (currentAnalysis.best_move_current_year?.pct_diff != null) {
+      moveYr = currentAnalysis.best_move_current_year.pct_diff;
+    }
+    if (currentAnalysis.best_move_overall?.pct_diff != null) {
+      moveAll = currentAnalysis.best_move_overall.pct_diff;
+    }
+  }
 
   const refreshed = m.refreshedAt ? `<span class="wl-refreshed">Updated ${formatWatchlistDate(m.refreshedAt)}</span>` : "";
 
@@ -470,6 +514,14 @@ function buildMetricsRow(m) {
         <span class="wl-metric-val">${fmtClose(m.all_time_high)}</span>
         ${athPct != null ? `<span class="wl-pill ${athCls}">${fmtPct(athPct)}</span>` : ""}
       </div>
+      <div class="wl-metric-cell" title="Best Move · Year: sequential low-to-high move in current year">
+        <span class="wl-metric-label">Move Yr</span>
+        ${moveYr != null ? `<span class="wl-pill wl-pill--pos">+${formatPct(moveYr)}</span>` : `<span class="wl-metric-val">—</span>`}
+      </div>
+      <div class="wl-metric-cell" title="Best Move · All-Time: largest sequential low-to-high move">
+        <span class="wl-metric-label">Move AT</span>
+        ${moveAll != null ? `<span class="wl-pill wl-pill--pos">+${formatPct(moveAll)}</span>` : `<span class="wl-metric-val">—</span>`}
+      </div>
       ${refreshed}
     </div>`;
 }
@@ -477,16 +529,14 @@ function buildMetricsRow(m) {
 async function refreshWatchlistItem(ticker, btnEl) {
   if (btnEl) { btnEl.disabled = true; btnEl.textContent = "…"; }
   try {
-    const resp = await fetch(`/api/analyze?ticker=${encodeURIComponent(ticker)}&years=1&months=1&refresh=true`);
-    if (!resp.ok) throw new Error("fetch failed");
-    const data = await resp.json();
+    const data = await safeFetchJson(`/api/analyze?ticker=${encodeURIComponent(ticker)}&years=5&months=12&refresh=true`);
     updateWatchlistMetrics(ticker, snapshotMetrics(data));
-    // Sync star if this is currently loaded
     if (currentAnalysis && currentAnalysis.ticker === ticker) {
-      // Optionally update currentAnalysis fields too
+      currentAnalysis = data;
+      render(data);
     }
-  } catch {
-    showNotification(`Could not refresh ${ticker}`, "error");
+  } catch (err) {
+    showNotification(`Could not refresh ${ticker}: ${err.message}`, "error");
   } finally {
     if (btnEl) { btnEl.disabled = false; btnEl.textContent = "↻"; }
   }
@@ -498,15 +548,16 @@ async function refreshAllWatchlist(btnEl) {
   if (btnEl) { btnEl.disabled = true; btnEl.textContent = "Refreshing…"; }
   for (const w of list) {
     try {
-      const resp = await fetch(`/api/analyze?ticker=${encodeURIComponent(w.ticker)}&years=1&months=1&refresh=true`);
-      if (resp.ok) {
-        const data = await resp.json();
-        updateWatchlistMetrics(w.ticker, snapshotMetrics(data));
+      const data = await safeFetchJson(`/api/analyze?ticker=${encodeURIComponent(w.ticker)}&years=5&months=12&refresh=true`);
+      updateWatchlistMetrics(w.ticker, snapshotMetrics(data));
+      if (currentAnalysis && currentAnalysis.ticker === w.ticker) {
+        currentAnalysis = data;
+        render(data);
       }
     } catch { /* continue */ }
   }
-  if (btnEl) { btnEl.disabled = false; btnEl.textContent = "Refresh All"; }
-  showNotification("Watchlist refreshed", "success");
+  if (btnEl) { btnEl.disabled = false; btnEl.textContent = "↻ Refresh All"; }
+  showNotification("Watchlist refreshed with latest prices.", "success");
 }
 
 function getWatchlistItemSignal(w) {
@@ -576,23 +627,25 @@ function renderWatchlistUI() {
   container.innerHTML = filteredList.map((w) => {
     const sig = getWatchlistItemSignal(w);
     const reason = w.metrics?.signalReason || "";
+    const safeTicker = escapeHtml(w.ticker);
+    const safeCompany = escapeHtml(w.companyName || "");
     return `
-    <div class="wl-item" data-ticker="${w.ticker}">
+    <div class="wl-item" data-ticker="${safeTicker}">
       <div class="wl-top-row">
         <div class="wl-left">
-          <span class="wl-symbol">${w.ticker}</span>
+          <span class="wl-symbol">${safeTicker}</span>
           <span class="signal-tag signal-tag--sm signal-${sig.toLowerCase()}" title="${escapeHtml(reason)}">
             <span class="signal-icon">${sig === "BUY" ? "▲" : sig === "SELL" ? "▼" : "●"}</span> ${sig}
           </span>
-          ${w.companyName ? `<span class="wl-name">${w.companyName}</span>` : ""}
+          ${w.companyName ? `<span class="wl-name">${safeCompany}</span>` : ""}
         </div>
         <div class="wl-actions">
-          <button class="wl-refresh-btn" data-ticker="${w.ticker}" title="Refresh ${w.ticker} data">↻</button>
-          <button class="wl-analyze-btn" data-ticker="${w.ticker}" title="Analyze ${w.ticker}">Analyze</button>
-          <button class="wl-remove-btn" data-ticker="${w.ticker}" title="Remove from watchlist">&times;</button>
+          <button class="wl-refresh-btn" data-ticker="${safeTicker}" title="Refresh ${safeTicker} data">↻</button>
+          <button class="wl-analyze-btn" data-ticker="${safeTicker}" title="Analyze ${safeTicker}">Analyze</button>
+          <button class="wl-remove-btn" data-ticker="${safeTicker}" title="Remove from watchlist">&times;</button>
         </div>
       </div>
-      ${buildMetricsRow(w.metrics)}
+      ${buildMetricsRow(w.metrics, w.ticker)}
     </div>`;
   }).join("");
 
@@ -639,7 +692,32 @@ function toggleWatchlistPanel(show) {
   if (target && els.watchlistConfirm) els.watchlistConfirm.hidden = true;
 }
 
+function sanitizeWatchlistLegacyMetrics() {
+  try {
+    let list = getWatchlist();
+    let changed = false;
+    list.forEach((w) => {
+      if (w.metrics) {
+        const m = w.metrics;
+        if (m.all_time_low && m.all_time_high && m.all_time_low > 0 && m.best_move_alltime_pct != null) {
+          const fakeAthPct = ((m.all_time_high - m.all_time_low) / m.all_time_low) * 100;
+          if (fakeAthPct > 500 && Math.abs(m.best_move_alltime_pct - fakeAthPct) < 0.01) {
+            delete m.best_move_alltime_pct;
+            changed = true;
+          }
+        }
+      }
+    });
+    if (changed) {
+      saveWatchlist(list);
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
 function initWatchlist() {
+  sanitizeWatchlistLegacyMetrics();
   updateWatchlistBadge();
   renderWatchlistUI();
 
@@ -773,6 +851,26 @@ function saveWlSort() {
   localStorage.setItem(STORAGE_WL_SORT_KEY, JSON.stringify({ key: wlSortKey, dir: wlSortDir }));
 }
 
+function getBestMoveYearPct(w) {
+  if (currentAnalysis && currentAnalysis.ticker === w.ticker && currentAnalysis.best_move_current_year?.pct_diff != null) {
+    return currentAnalysis.best_move_current_year.pct_diff;
+  }
+  if (w.metrics?.best_move_year_pct != null) return w.metrics.best_move_year_pct;
+  const m = w.metrics;
+  if (m?.latest_low && m?.latest_high && m.latest_low > 0) {
+    return ((m.latest_high - m.latest_low) / m.latest_low) * 100;
+  }
+  return null;
+}
+
+function getBestMoveAlltimePct(w) {
+  if (currentAnalysis && currentAnalysis.ticker === w.ticker && currentAnalysis.best_move_overall?.pct_diff != null) {
+    return currentAnalysis.best_move_overall.pct_diff;
+  }
+  if (w.metrics?.best_move_alltime_pct != null) return w.metrics.best_move_alltime_pct;
+  return null;
+}
+
 function getSortedWatchlist() {
   const list = [...getWatchlist()];
   list.sort((a, b) => {
@@ -811,6 +909,22 @@ function getSortedWatchlist() {
       if (bv === null) return -1;
       return wlSortDir * (av - bv);
     }
+    if (wlSortKey === "moveyear") {
+      const av = getBestMoveYearPct(a);
+      const bv = getBestMoveYearPct(b);
+      if (av === null && bv === null) return 0;
+      if (av === null) return 1;
+      if (bv === null) return -1;
+      return wlSortDir * (av - bv);
+    }
+    if (wlSortKey === "moveall") {
+      const av = getBestMoveAlltimePct(a);
+      const bv = getBestMoveAlltimePct(b);
+      if (av === null && bv === null) return 0;
+      if (av === null) return 1;
+      if (bv === null) return -1;
+      return wlSortDir * (av - bv);
+    }
     return 0;
   });
   return list;
@@ -822,8 +936,10 @@ const SORT_LABELS = {
   high: "Yr High %",
   atlow: "AT Low %",
   athigh: "AT High %",
+  moveyear: "Best Move · Yr",
+  moveall: "Best Move · AT %",
 };
-const SORT_KEYS = ["alpha", "low", "high", "atlow", "athigh"];
+const SORT_KEYS = ["alpha", "low", "high", "atlow", "athigh", "moveyear", "moveall"];
 
 function updateSortButtons() {
   const arrowUp = " ↑", arrowDown = " ↓";
@@ -848,7 +964,8 @@ function initWatchlistSort() {
         wlSortDir = wlSortDir === 1 ? -1 : 1;
       } else {
         wlSortKey = key;
-        wlSortDir = 1;
+        // Default to descending (largest gain first) for Best Move sorts
+        wlSortDir = (key === "moveyear" || key === "moveall") ? -1 : 1;
       }
       saveWlSort();
       updateSortButtons();
@@ -864,7 +981,7 @@ function initWatchlistSort() {
 const STORAGE_WL_HEIGHT_KEY = "stock_ledger_wl_height";
 const WL_HEIGHT_MIN = 120;
 const WL_HEIGHT_MAX = 700;
-const WL_HEIGHT_DEFAULT = 320;
+const WL_HEIGHT_DEFAULT = 480;
 
 function initWatchlistResize() {
   const handle = document.getElementById("watchlistResizeHandle");
@@ -873,8 +990,10 @@ function initWatchlistResize() {
 
   // Restore saved height
   const saved = parseInt(localStorage.getItem(STORAGE_WL_HEIGHT_KEY), 10);
-  if (saved >= WL_HEIGHT_MIN && saved <= WL_HEIGHT_MAX) {
+  if (saved >= 400 && saved <= WL_HEIGHT_MAX) {
     list.style.maxHeight = saved + "px";
+  } else {
+    list.style.maxHeight = WL_HEIGHT_DEFAULT + "px";
   }
 
   let startY = 0;
@@ -996,6 +1115,8 @@ function exportWatchlistCsv() {
     "Diff_From_52W_High_Pct",
     "All_Time_Low",
     "All_Time_High",
+    "Best_Move_Year_Pct",
+    "Best_Move_AllTime_Pct",
     "Signal_Reason",
     "Added_At",
   ];
@@ -1003,6 +1124,8 @@ function exportWatchlistCsv() {
   const rows = list.map((w) => {
     const m = w.metrics || {};
     const sig = getWatchlistItemSignal(w);
+    const moveYr = getBestMoveYearPct(w);
+    const moveAll = getBestMoveAlltimePct(w);
     return [
       w.ticker,
       w.companyName || "",
@@ -1014,6 +1137,8 @@ function exportWatchlistCsv() {
       m.diff_from_latest_high_pct ?? "",
       m.all_time_low ?? "",
       m.all_time_high ?? "",
+      moveYr != null ? Number(moveYr).toFixed(2) : "",
+      moveAll != null ? Number(moveAll).toFixed(2) : "",
       m.signalReason || "",
       w.addedAt ? new Date(w.addedAt).toISOString() : "",
     ].map((val) => `"${String(val).replace(/"/g, '""')}"`).join(",");
@@ -1416,14 +1541,21 @@ function renderHistoryUI() {
     return;
   }
 
-  els.historyList.innerHTML = history.map((item) => `
-    <div class="history-item" data-id="${item.id}" data-type="${item.type}" data-query="${item.query}" data-years="${item.years || 5}" data-months="${item.months || 12}">
-      <span class="history-source-badge ${item.type}">${item.type}</span>
-      <span class="history-query">${item.query}</span>
-      <span class="history-meta">${item.years}y · ${item.months}m · ${formatRelativeTime(item.timestamp)}</span>
-      <button type="button" class="history-item-del" data-id="${item.id}" title="Remove from history">&times;</button>
+  els.historyList.innerHTML = history.map((item) => {
+    const safeId = escapeHtml(item.id);
+    const safeType = escapeHtml(item.type);
+    const safeQuery = escapeHtml(item.query);
+    const safeYears = escapeHtml(item.years || 5);
+    const safeMonths = escapeHtml(item.months || 12);
+    return `
+    <div class="history-item" data-id="${safeId}" data-type="${safeType}" data-query="${safeQuery}" data-years="${safeYears}" data-months="${safeMonths}">
+      <span class="history-source-badge ${safeType}">${safeType}</span>
+      <span class="history-query">${safeQuery}</span>
+      <span class="history-meta">${safeYears}y · ${safeMonths}m · ${formatRelativeTime(item.timestamp)}</span>
+      <button type="button" class="history-item-del" data-id="${safeId}" title="Remove from history">&times;</button>
     </div>
-  `).join("");
+  `;
+  }).join("");
 
   // Attach click events
   els.historyList.querySelectorAll(".history-item").forEach((el) => {
@@ -1687,12 +1819,15 @@ function renderSimilarStocks(symbols) {
     return;
   }
 
-  els.similarChips.innerHTML = symbols.map((sym) => `
-    <button type="button" class="similar-chip" data-ticker="${sym}" title="Analyze ${sym}">
-      <span>${sym}</span>
+  els.similarChips.innerHTML = symbols.map((sym) => {
+    const safeSym = escapeHtml(sym);
+    return `
+    <button type="button" class="similar-chip" data-ticker="${safeSym}" title="Analyze ${safeSym}">
+      <span>${safeSym}</span>
       <span class="similar-chip-arrow">↗</span>
     </button>
-  `).join("");
+  `;
+  }).join("");
 
   els.similarStocksWrap.hidden = false;
 
@@ -2419,8 +2554,8 @@ function renderQuoteDetails(details) {
     return `<div class="stats-col">` +
       items.map(([label, val]) => `
         <div class="stat-row">
-          <span class="stat-label">${label}</span>
-          <span class="stat-value">${val ?? "—"}</span>
+          <span class="stat-label">${escapeHtml(label)}</span>
+          <span class="stat-value">${escapeHtml(val ?? "—")}</span>
         </div>
       `).join("") +
       `</div>`;
@@ -2428,6 +2563,20 @@ function renderQuoteDetails(details) {
 
   els.statsGrid.innerHTML = buildCol(col1) + buildCol(col2);
   els.quoteDetailsPanel.hidden = false;
+}
+
+function syncCurrentAnalysisToWatchlist(data) {
+  if (!data || !data.ticker) return;
+  const list = getWatchlist();
+  const entry = list.find((w) => w.ticker === data.ticker);
+  if (entry) {
+    entry.metrics = snapshotMetrics(data);
+    if (data.company_name && !entry.companyName) {
+      entry.companyName = data.company_name;
+    }
+    saveWatchlist(list);
+    renderWatchlistUI();
+  }
 }
 
 function render(data) {
@@ -2451,6 +2600,8 @@ function render(data) {
   els.monthlyRangeNote.textContent = first && last
     ? `${first.label} – ${last.label}, trailing performance ledger ending on the latest session.`
     : "";
+
+  syncCurrentAnalysisToWatchlist(data);
 
   els.results.hidden = false;
 }
@@ -2486,9 +2637,7 @@ async function handleFetch() {
   setLoadingState(true, `Fetching ${ticker} from Yahoo Finance…`);
 
   try {
-    const res = await fetch(`${API_BASE}/api/analyze?ticker=${encodeURIComponent(ticker)}&years=${years}&months=${months}`);
-    const body = await res.json();
-    if (!res.ok) throw new Error(body.detail || "Failed to retrieve data. The ticker may be invalid or Yahoo Finance is temporarily unavailable.");
+    const body = await safeFetchJson(`${API_BASE}/api/analyze?ticker=${encodeURIComponent(ticker)}&years=${years}&months=${months}`);
     
     render(body);
     showNotification(`${body.ticker} loaded — ${body.trading_days.toLocaleString()} trading sessions across ${years} year${years > 1 ? 's' : ''}.`, "success");
@@ -2587,6 +2736,11 @@ async function handleSubmitCsv() {
     return;
   }
 
+  if (selectedCsvFile.size > 10 * 1024 * 1024) {
+    showNotification("CSV file exceeds 10MB limit. Please upload a smaller file.", "error");
+    return;
+  }
+
   const rawTicker = els.ticker.value;
   const ticker = (rawTicker || "").trim().toUpperCase() || "CSV_IMPORT";
   const years = els.years.value;
@@ -2600,12 +2754,10 @@ async function handleSubmitCsv() {
   form.append("file", selectedCsvFile);
 
   try {
-    const res = await fetch(`${API_BASE}/api/analyze/upload?ticker=${encodeURIComponent(ticker)}&years=${years}&months=${months}`, {
+    const body = await safeFetchJson(`${API_BASE}/api/analyze/upload?ticker=${encodeURIComponent(ticker)}&years=${years}&months=${months}`, {
       method: "POST",
       body: form,
-    });
-    const body = await res.json();
-    if (!res.ok) throw new Error(body.detail || "Failed to process CSV file.");
+    }, 45000);
     
     render(body);
     showNotification(`Analyzed ${body.ticker} from ${selectedCsvFile.name} (${body.trading_days.toLocaleString()} sessions).`, "success");
