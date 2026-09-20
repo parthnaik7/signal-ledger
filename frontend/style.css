@@ -2468,6 +2468,138 @@ body {
   background: rgba(255, 255, 255, 0.12);
 }
 
+/* ── Watchlist Refresh Progress Panel ───────────────────────────────────── */
+.wl-progress-wrap {
+  background: var(--bg-card-subtle, rgba(255, 255, 255, 0.03));
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin: 4px 0 10px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  animation: wlFadeIn 0.2s ease;
+  transition: opacity 0.3s ease;
+}
+
+.wl-progress-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.wl-progress-status {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.wl-progress-spinner {
+  width: 13px;
+  height: 13px;
+  border: 2px solid var(--border-default);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: wlSpin 0.7s linear infinite;
+  display: inline-block;
+}
+
+.wl-progress-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: 0.01em;
+}
+
+.wl-progress-stats {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.wl-stat-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 12px;
+  line-height: 1.2;
+}
+
+.wl-stat-icon {
+  font-size: 10px;
+}
+
+.wl-stat-pill--done {
+  background: rgba(16, 185, 129, 0.14);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: #10B981;
+}
+
+.wl-stat-pill--pending {
+  background: rgba(107, 114, 128, 0.14);
+  border: 1px solid var(--border-default);
+  color: var(--text-secondary);
+}
+
+.wl-stat-pill--failed {
+  background: rgba(239, 68, 68, 0.14);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #EF4444;
+}
+
+.wl-progress-cancel {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  transition: all var(--transition-fast);
+  line-height: 1;
+}
+
+.wl-progress-cancel:hover {
+  color: #EF4444;
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.25);
+}
+
+.wl-progress-track {
+  width: 100%;
+  height: 4px;
+  background: var(--border-subtle, rgba(255, 255, 255, 0.08));
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 7px;
+}
+
+.wl-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent) 0%, #10B981 100%);
+  border-radius: 2px;
+  transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes wlSpin {
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes wlFadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes wlSuccessGlow {
+  0% { background-color: rgba(16, 185, 129, 0.22); }
+  100% { background-color: transparent; }
+}
+
 /* ── Resize Handle ──────────────────────────────────────────────────────── */
 .wl-resize-handle {
   display: flex;
@@ -2538,6 +2670,48 @@ body {
 .wl-item:last-child { border-bottom: none; }
 
 .wl-item:hover { background: var(--bg-hover); }
+
+/* Progressive state indicators on watchlist cards */
+.wl-item.wl-item--pending {
+  opacity: 0.72;
+}
+
+.wl-item.wl-item--updating {
+  border-left: 3px solid var(--accent);
+  background: rgba(59, 130, 246, 0.04);
+}
+
+.wl-item.wl-item--updating .wl-refresh-btn {
+  animation: wlSpin 0.7s linear infinite;
+  pointer-events: none;
+  color: var(--accent);
+}
+
+.wl-item.wl-item--success {
+  border-left: 3px solid #10B981;
+  animation: wlSuccessGlow 1.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.wl-item.wl-item--failed {
+  border-left: 3px solid #EF4444;
+  background: rgba(239, 68, 68, 0.03);
+}
+
+.wl-item-error-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  color: #EF4444;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  padding: 1px 5px;
+  border-radius: 4px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
 
 .wl-left {
   flex: 1;

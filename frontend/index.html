@@ -228,6 +228,30 @@
           <button type="button" class="wl-sort-btn" data-sort="moveall" id="wlSortMoveall" title="Sort by Best Move · All-Time %">Best Move · AT %</button>
         </div>
       </div>
+      <!-- Watchlist Refresh Progress Panel -->
+      <div class="wl-progress-wrap" id="wlProgressWrap" hidden aria-live="polite">
+        <div class="wl-progress-header">
+          <div class="wl-progress-status">
+            <span class="wl-progress-spinner" aria-hidden="true"></span>
+            <span class="wl-progress-title" id="wlProgressTitle">Refreshing Watchlist...</span>
+          </div>
+          <div class="wl-progress-stats">
+            <span class="wl-stat-pill wl-stat-pill--done" title="Completed">
+              <span class="wl-stat-icon">✓</span> <span id="wlProgDoneCount">0</span>
+            </span>
+            <span class="wl-stat-pill wl-stat-pill--pending" title="Pending">
+              <span class="wl-stat-icon">⏳</span> <span id="wlProgPendingCount">0</span>
+            </span>
+            <span class="wl-stat-pill wl-stat-pill--failed" id="wlProgFailedPill" title="Failed" style="display: none;">
+              <span class="wl-stat-icon">⚠</span> <span id="wlProgFailedCount">0</span>
+            </span>
+            <button type="button" class="wl-progress-cancel" id="wlCancelRefreshBtn" title="Cancel refresh">✕</button>
+          </div>
+        </div>
+        <div class="wl-progress-track">
+          <div class="wl-progress-fill" id="wlProgressFill" style="width: 0%;"></div>
+        </div>
+      </div>
       <div class="history-list" id="watchlistItems">
         <!-- Populated via app.js -->
       </div>

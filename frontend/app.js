@@ -73,6 +73,14 @@ const els = {
   exportWlCsvBtn: document.getElementById("exportWlCsvBtn"),
   importWlBtn: document.getElementById("importWlBtn"),
   watchlistFileInput: document.getElementById("watchlistFileInput"),
+  wlProgressWrap: document.getElementById("wlProgressWrap"),
+  wlProgressTitle: document.getElementById("wlProgressTitle"),
+  wlProgDoneCount: document.getElementById("wlProgDoneCount"),
+  wlProgPendingCount: document.getElementById("wlProgPendingCount"),
+  wlProgFailedCount: document.getElementById("wlProgFailedCount"),
+  wlProgFailedPill: document.getElementById("wlProgFailedPill"),
+  wlProgressFill: document.getElementById("wlProgressFill"),
+  wlCancelRefreshBtn: document.getElementById("wlCancelRefreshBtn"),
 
   // Content Panels & Charts
   quoteDetailsPanel: document.getElementById("quoteDetailsPanel"),
@@ -146,9 +154,23 @@ function escapeHtml(str) {
 async function safeFetchJson(url, options = {}, timeoutMs = 25000) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  let onAbortExternal = null;
+  if (options.signal) {
+    if (options.signal.aborted) {
+      clearTimeout(timer);
+      throw new Error("Request cancelled");
+    }
+    onAbortExternal = () => controller.abort();
+    options.signal.addEventListener("abort", onAbortExternal, { once: true });
+  }
+
   try {
     const res = await fetch(url, { ...options, signal: controller.signal });
     clearTimeout(timer);
+    if (options.signal && onAbortExternal) {
+      options.signal.removeEventListener("abort", onAbortExternal);
+    }
     let data;
     const contentType = res.headers.get("content-type") || "";
     if (contentType.includes("application/json")) {
@@ -163,11 +185,77 @@ async function safeFetchJson(url, options = {}, timeoutMs = 25000) {
     return data;
   } catch (err) {
     clearTimeout(timer);
+    if (options.signal && onAbortExternal) {
+      options.signal.removeEventListener("abort", onAbortExternal);
+    }
+    if (options.signal?.aborted) {
+      throw new Error("Request cancelled");
+    }
     if (err.name === "AbortError") {
       throw new Error("Request timed out. The server or data provider took too long to respond.");
     }
     throw err;
   }
+}
+
+/**
+ * Robust fetch with exponential backoff & jitter for transient errors (5xx, 429, network).
+ */
+async function safeFetchWithRetry(url, options = {}, { maxRetries = 2, backoffBaseMs = 600, timeoutMs = 25000, signal } = {}) {
+  let attempt = 0;
+  while (true) {
+    if (signal?.aborted) throw new Error("Request cancelled");
+    try {
+      return await safeFetchJson(url, { ...options, signal }, timeoutMs);
+    } catch (err) {
+      if (signal?.aborted || err.message === "Request cancelled") {
+        throw err;
+      }
+      attempt++;
+      if (attempt > maxRetries) {
+        throw err;
+      }
+      // Exponential backoff with random jitter
+      const delay = Math.round(backoffBaseMs * Math.pow(2, attempt - 1) + Math.random() * 200);
+      await new Promise((resolve, reject) => {
+        const t = setTimeout(resolve, delay);
+        if (signal) {
+          signal.addEventListener("abort", () => {
+            clearTimeout(t);
+            reject(new Error("Request cancelled"));
+          }, { once: true });
+        }
+      });
+    }
+  }
+}
+
+/**
+ * Executes async tasks with strict concurrency pooling.
+ * Immediate worker reuse as soon as any promise settles.
+ */
+async function runWithConcurrency(items, limit, workerFn, { signal } = {}) {
+  const results = new Array(items.length);
+  let nextIndex = 0;
+
+  async function worker() {
+    while (nextIndex < items.length) {
+      if (signal?.aborted) break;
+      const currentIndex = nextIndex++;
+      const item = items[currentIndex];
+      try {
+        const val = await workerFn(item, currentIndex);
+        results[currentIndex] = { status: "fulfilled", value: val };
+      } catch (err) {
+        results[currentIndex] = { status: "rejected", reason: err };
+      }
+    }
+  }
+
+  const poolSize = Math.max(1, Math.min(limit, items.length));
+  const workers = Array.from({ length: poolSize }, () => worker());
+  await Promise.all(workers);
+  return results;
 }
 
 function renderDropdown(suggestions) {
@@ -399,13 +487,15 @@ function removeFromWatchlist(ticker) {
   updateWatchlistBadge();
 }
 
-function updateWatchlistMetrics(ticker, metrics) {
+function updateWatchlistMetrics(ticker, metrics, skipFullRender = false) {
   let list = getWatchlist();
   const entry = list.find((w) => w.ticker === ticker);
   if (entry) {
     entry.metrics = metrics;
     saveWatchlist(list);
-    renderWatchlistUI();
+    if (!skipFullRender) {
+      renderWatchlistUI();
+    }
   }
 }
 
@@ -526,38 +616,273 @@ function buildMetricsRow(m, ticker = "") {
     </div>`;
 }
 
+/**
+ * Progressively updates an individual watchlist card DOM element without re-rendering the whole list.
+ * States: 'pending', 'updating', 'success', 'failed'
+ */
+function updateWatchlistCardDOM(ticker, metrics, status = "success", errorMsg = "") {
+  const container = els.watchlistItems;
+  if (!container) return;
+  const card = container.querySelector(`.wl-item[data-ticker="${escapeHtml(ticker)}"]`);
+  if (!card) return;
+
+  card.classList.remove("wl-item--pending", "wl-item--updating");
+
+  if (status === "updating") {
+    card.classList.add("wl-item--updating");
+    card.querySelector(".wl-item-error-tag")?.remove();
+    return;
+  }
+
+  if (status === "pending") {
+    card.classList.add("wl-item--pending");
+    return;
+  }
+
+  if (status === "failed") {
+    card.classList.add("wl-item--failed");
+    if (!card.querySelector(".wl-item-error-tag")) {
+      const tag = document.createElement("span");
+      tag.className = "wl-item-error-tag";
+      tag.title = errorMsg || "Failed to fetch latest data";
+      tag.textContent = "⚠ Failed";
+      card.querySelector(".wl-left")?.appendChild(tag);
+    }
+    return;
+  }
+
+  if (status === "success" && metrics) {
+    card.classList.remove("wl-item--failed");
+    card.querySelector(".wl-item-error-tag")?.remove();
+
+    // Update signal tag
+    const sig = metrics.signal || "HOLD";
+    const sigTag = card.querySelector(".signal-tag");
+    if (sigTag) {
+      sigTag.className = `signal-tag signal-tag--sm signal-${sig.toLowerCase()}`;
+      sigTag.title = metrics.signalReason || "";
+      sigTag.innerHTML = `<span class="signal-icon">${sig === "BUY" ? "▲" : sig === "SELL" ? "▼" : "●"}</span> ${sig}`;
+    }
+
+    // Update metrics row
+    const oldRow = card.querySelector(".wl-metrics");
+    const newRowHtml = buildMetricsRow(metrics, ticker);
+    if (oldRow) {
+      oldRow.outerHTML = newRowHtml;
+    } else {
+      card.insertAdjacentHTML("beforeend", newRowHtml);
+    }
+
+    // Trigger subtle success glow animation
+    card.classList.remove("wl-item--success");
+    void card.offsetWidth;
+    card.classList.add("wl-item--success");
+    setTimeout(() => card.classList.remove("wl-item--success"), 1500);
+  }
+}
+
+let activeRefreshAllController = null;
+let isRefreshingAll = false;
+
+function cancelRefreshAll() {
+  if (activeRefreshAllController) {
+    activeRefreshAllController.abort();
+    activeRefreshAllController = null;
+  }
+}
+
+function updateRefreshProgressBar(completed, pending, failed, total) {
+  if (!els.wlProgressWrap) return;
+  if (els.wlProgDoneCount) els.wlProgDoneCount.textContent = completed;
+  if (els.wlProgPendingCount) els.wlProgPendingCount.textContent = pending;
+  if (els.wlProgFailedCount) els.wlProgFailedCount.textContent = failed;
+
+  if (els.wlProgFailedPill) {
+    els.wlProgFailedPill.style.display = failed > 0 ? "inline-flex" : "none";
+  }
+
+  const processed = completed + failed;
+  const pct = total > 0 ? Math.round((processed / total) * 100) : 0;
+  if (els.wlProgressFill) {
+    els.wlProgressFill.style.width = `${pct}%`;
+  }
+  if (els.wlProgressTitle) {
+    els.wlProgressTitle.textContent = `Refreshing Watchlist (${processed}/${total})...`;
+  }
+}
+
 async function refreshWatchlistItem(ticker, btnEl) {
   if (btnEl) { btnEl.disabled = true; btnEl.textContent = "…"; }
+  updateWatchlistCardDOM(ticker, null, "updating");
   try {
-    const data = await safeFetchJson(`/api/analyze?ticker=${encodeURIComponent(ticker)}&years=5&months=12&refresh=true`);
-    updateWatchlistMetrics(ticker, snapshotMetrics(data));
+    const data = await safeFetchWithRetry(
+      `/api/analyze?ticker=${encodeURIComponent(ticker)}&years=5&months=12&refresh=true`,
+      {},
+      { maxRetries: 2, backoffBaseMs: 600 }
+    );
+    const metrics = snapshotMetrics(data);
+    updateWatchlistMetrics(ticker, metrics, true);
+    updateWatchlistCardDOM(ticker, metrics, "success");
     if (currentAnalysis && currentAnalysis.ticker === ticker) {
       currentAnalysis = data;
       render(data);
     }
+    showNotification(`✓ ${ticker} refreshed`, "success");
   } catch (err) {
+    updateWatchlistCardDOM(ticker, null, "failed", err.message);
     showNotification(`Could not refresh ${ticker}: ${err.message}`, "error");
   } finally {
     if (btnEl) { btnEl.disabled = false; btnEl.textContent = "↻"; }
   }
 }
 
-async function refreshAllWatchlist(btnEl) {
+async function refreshAllWatchlist(btnEl, options = {}) {
+  if (isRefreshingAll) return;
+
   const list = getWatchlist();
-  if (!list.length) return;
-  if (btnEl) { btnEl.disabled = true; btnEl.textContent = "Refreshing…"; }
-  for (const w of list) {
-    try {
-      const data = await safeFetchJson(`/api/analyze?ticker=${encodeURIComponent(w.ticker)}&years=5&months=12&refresh=true`);
-      updateWatchlistMetrics(w.ticker, snapshotMetrics(data));
-      if (currentAnalysis && currentAnalysis.ticker === w.ticker) {
-        currentAnalysis = data;
-        render(data);
-      }
-    } catch { /* continue */ }
+  if (!list.length) {
+    showNotification("Watchlist is empty.", "info");
+    return;
   }
-  if (btnEl) { btnEl.disabled = false; btnEl.textContent = "↻ Refresh All"; }
-  showNotification("Watchlist refreshed with latest prices.", "success");
+
+  isRefreshingAll = true;
+  activeRefreshAllController = new AbortController();
+  const signal = activeRefreshAllController.signal;
+
+  const total = list.length;
+  let completed = 0;
+  let failed = 0;
+  let pending = total;
+  const startTime = performance.now();
+
+  if (btnEl) {
+    btnEl.disabled = true;
+    btnEl.innerHTML = `<span class="wl-progress-spinner" style="vertical-align:middle; margin-right:4px;"></span> Refreshing…`;
+  }
+
+  if (els.wlProgressWrap) {
+    els.wlProgressWrap.hidden = false;
+    els.wlProgressWrap.style.opacity = "1";
+    updateRefreshProgressBar(completed, pending, failed, total);
+  }
+
+  // Mark all cards as pending in the DOM
+  list.forEach((w) => {
+    updateWatchlistCardDOM(w.ticker, w.metrics, "pending");
+  });
+
+  const CONCURRENCY_LIMIT = 3;
+  const CACHE_FRESH_WINDOW_MS = 45000; // 45s smart cache guard
+
+  try {
+    await runWithConcurrency(
+      list,
+      CONCURRENCY_LIMIT,
+      async (w) => {
+        if (signal.aborted) throw new Error("Request cancelled");
+
+        updateWatchlistCardDOM(w.ticker, w.metrics, "updating");
+
+        const isFresh = !options.force && w.metrics?.refreshedAt && (Date.now() - w.metrics.refreshedAt < CACHE_FRESH_WINDOW_MS);
+        let data;
+
+        if (isFresh) {
+          completed++;
+          pending--;
+          updateRefreshProgressBar(completed, pending, failed, total);
+          updateWatchlistCardDOM(w.ticker, w.metrics, "success");
+          return;
+        }
+
+        try {
+          data = await safeFetchWithRetry(
+            `/api/analyze?ticker=${encodeURIComponent(w.ticker)}&years=5&months=12&refresh=true`,
+            {},
+            { maxRetries: 2, backoffBaseMs: 600, signal }
+          );
+
+          const metrics = snapshotMetrics(data);
+          updateWatchlistMetrics(w.ticker, metrics, true);
+
+          completed++;
+          pending--;
+          updateRefreshProgressBar(completed, pending, failed, total);
+          updateWatchlistCardDOM(w.ticker, metrics, "success");
+
+          if (currentAnalysis && currentAnalysis.ticker === w.ticker) {
+            currentAnalysis = data;
+            syncCurrentAnalysisToWatchlist(data);
+          }
+        } catch (err) {
+          if (signal.aborted) throw err;
+          failed++;
+          pending--;
+          updateRefreshProgressBar(completed, pending, failed, total);
+          updateWatchlistCardDOM(w.ticker, w.metrics, "failed", err.message);
+        }
+      },
+      { signal }
+    );
+
+    // Update filter badges with final signal counts
+    const updatedList = getWatchlist();
+    const counts = { all: updatedList.length, BUY: 0, HOLD: 0, SELL: 0 };
+    updatedList.forEach((w) => {
+      const sig = getWatchlistItemSignal(w);
+      if (counts[sig] !== undefined) counts[sig]++;
+      else counts.HOLD++;
+    });
+    updateFilterButtons(counts);
+
+    const durationSec = ((performance.now() - startTime) / 1000).toFixed(1);
+    if (els.wlProgressTitle) {
+      els.wlProgressTitle.textContent = `Completed in ${durationSec}s`;
+    }
+
+    if (failed === 0) {
+      showNotification(`✓ Watchlist refreshed: ${completed} stock${completed > 1 ? "s" : ""} in ${durationSec}s.`, "success");
+    } else {
+      showNotification(`Watchlist refresh finished: ${completed} updated, ${failed} failed in ${durationSec}s.`, "warning");
+    }
+  } catch (err) {
+    if (err.message === "Request cancelled" || signal.aborted) {
+      showNotification("Watchlist refresh cancelled.", "info");
+      if (els.wlProgressTitle) {
+        els.wlProgressTitle.textContent = "Refresh cancelled";
+      }
+    } else {
+      showNotification(`Refresh error: ${err.message}`, "error");
+    }
+  } finally {
+    isRefreshingAll = false;
+    activeRefreshAllController = null;
+
+    if (btnEl) {
+      btnEl.disabled = false;
+      btnEl.textContent = "↻ Refresh All";
+    }
+
+    list.forEach((w) => {
+      const card = els.watchlistItems?.querySelector(`.wl-item[data-ticker="${escapeHtml(w.ticker)}"]`);
+      if (card) {
+        card.classList.remove("wl-item--pending", "wl-item--updating");
+      }
+    });
+
+    if (els.wlProgressWrap) {
+      setTimeout(() => {
+        if (!isRefreshingAll && els.wlProgressWrap) {
+          els.wlProgressWrap.style.opacity = "0";
+          setTimeout(() => {
+            if (!isRefreshingAll && els.wlProgressWrap) {
+              els.wlProgressWrap.hidden = true;
+              els.wlProgressWrap.style.opacity = "1";
+            }
+          }, 300);
+        }
+      }, 3000);
+    }
+  }
 }
 
 function getWatchlistItemSignal(w) {
@@ -766,6 +1091,12 @@ function initWatchlist() {
   if (els.refreshAllWatchlistBtn) {
     els.refreshAllWatchlistBtn.addEventListener("click", (e) => {
       refreshAllWatchlist(e.currentTarget);
+    });
+  }
+
+  if (els.wlCancelRefreshBtn) {
+    els.wlCancelRefreshBtn.addEventListener("click", () => {
+      cancelRefreshAll();
     });
   }
 
