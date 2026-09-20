@@ -127,8 +127,8 @@
               <div class="playbook-step">
                 <div class="step-number">3</div>
                 <div class="step-content">
-                  <h4>Verify the Buy / Sell / Hold Signal &amp; Macro Regime</h4>
-                  <p>When loading a stock, immediately glance at the <strong>Buy / Sell / Hold Signal Tag</strong> (<span class="signal-tag signal-buy" style="padding:1px 6px; font-size:10px;">▲ BUY</span>, <span class="signal-tag signal-hold" style="padding:1px 6px; font-size:10px;">● HOLD</span>, <span class="signal-tag signal-sell" style="padding:1px 6px; font-size:10px;">▼ SELL</span>) beside the ticker and the <strong>Market Regime Badge</strong> beside the chart. Hover over the signal tag to see its multi-factor mathematical breakdown. A <strong>BUY</strong> signal coupled with a <strong>Bullish Regime</strong> (&gt; 200-SMA) confirms multi-timeframe institutional backing where pullbacks offer asymmetric upside.</p>
+                  <h4>Verify Institutional Consensus &amp; Macro Regime</h4>
+                  <p>When loading a stock, immediately glance at the <strong>Institutional Consensus Signal Tag</strong> (<span class="signal-tag signal-buy" style="padding:1px 6px; font-size:10px;">▲ BUY</span>, <span class="signal-tag signal-hold" style="padding:1px 6px; font-size:10px;">● HOLD</span>, <span class="signal-tag signal-sell" style="padding:1px 6px; font-size:10px;">▼ SELL</span>) beside the ticker and the <strong>Market Regime Badge</strong> beside the chart. Click the signal tag to launch the full <strong>Signal Review Inspector</strong> showing LSEG Refinitiv scores, analyst distributions, price targets, Morningstar star ratings, and broker actions.</p>
                 </div>
               </div>
               <div class="playbook-step">
@@ -361,80 +361,81 @@
                 </div>
               </div>
 
-              <!-- Buy / Sell / Hold Quantitative Signal Engine -->
+              <!-- Unified Institutional Signal Review Module -->
               <div class="indicator-card" id="indicator-signal-engine">
                 <div class="indicator-card-header">
                   <h4 class="indicator-title">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path></svg>
-                    Buy / Sell / Hold Quantitative Signal Engine
+                    Unified Institutional Signal Review Engine
                   </h4>
                   <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
                     <span class="signal-tag signal-buy"><span class="signal-icon">▲</span> BUY</span>
                     <span class="signal-tag signal-hold"><span class="signal-icon">●</span> HOLD</span>
                     <span class="signal-tag signal-sell"><span class="signal-icon">▼</span> SELL</span>
-                    <span class="status-pill-live">Live in Terminal</span>
+                    <span class="signal-tag signal-unrated"><span class="signal-icon">—</span> UNRATED</span>
+                    <span class="status-pill-live">Multi-Source Consensus</span>
                   </div>
                 </div>
                 <div class="indicator-first-principle">
-                  <strong>First Principle: Multi-Factor Confluence Over Single-Indicator Myopia.</strong> Single-indicator trading rules fail predictably across varying market regimes: buying purely because RSI is oversold leads to "catching falling knives" during structural institutional liquidations, while selling purely because RSI crosses 70 forces investors out of early-stage secular growth breakouts. The SignalLedger Signal Engine resolves this through <strong>confluence scoring</strong>: it synthesizes secular macro trend, quarterly institutional cost basis, short-term velocity, and cycle sequence reality into a single sub-millisecond composite decision.
+                  <strong>First Principle: Authoritative Institutional Consensus Over Naive Heuristics.</strong> Rather than relying on fragile single-indicator retail heuristics, SignalLedger synthesizes live data from globally recognized financial data providers: <strong>LSEG Refinitiv Institutional Analyst Consensus</strong> (1.0 Strong Buy &rarr; 5.0 Strong Sell scale), <strong>Wall Street Price Target Envelopes</strong>, <strong>Morningstar Fair Value / 1–5 Star Ratings</strong>, and verified broker upgrades/downgrades. This delivers a single normalized verdict object with complete underlying transparency.
                 </div>
                 <div class="indicator-meta-box">
                   <div>
-                    <span class="meta-item-label">Mathematical Model</span>
-                    <span class="meta-item-value"><code>Composite Score = W_{200} + W_{50} + W_{RSI} + W_{Seq}</code></span>
+                    <span class="meta-item-label">Data Sources</span>
+                    <span class="meta-item-value">LSEG Refinitiv &middot; Yahoo Finance Analyst Ratings &middot; Morningstar Fair Value Model</span>
                   </div>
                   <div>
-                    <span class="meta-item-label">Execution Latency</span>
-                    <span class="meta-item-value">&lt; 1 ms client-side calculation; zero additional backend round-trips.</span>
+                    <span class="meta-item-label">Interactive Inspector</span>
+                    <span class="meta-item-value">Click any signal badge in the terminal or watchlist to launch the full <strong>Signal Review Inspector Modal</strong>.</span>
                   </div>
                   <div>
-                    <span class="meta-item-label">UI Placement</span>
-                    <span class="meta-item-value">Summary card pill beside ticker with live hover tooltip &middot; compact badge in Watchlist drawer.</span>
+                    <span class="meta-item-label">Server Caching Tier</span>
+                    <span class="meta-item-value">High-performance 30-minute LRU cache with non-blocking background fetching and automated stale-while-revalidate.</span>
                   </div>
                 </div>
 
                 <div style="margin: 16px 0 14px;">
-                  <span class="meta-item-label" style="margin-bottom: 8px;">Quantitative Factor Weighting Matrix</span>
+                  <span class="meta-item-label" style="margin-bottom: 8px;">Institutional Scale &amp; Normalization Matrix</span>
                   <div class="article-table-wrap">
                     <table class="article-table" style="font-size: 13px;">
                       <thead>
                         <tr>
-                          <th>Factor / Dimension</th>
-                          <th>Indicator Condition</th>
-                          <th>Score Weight</th>
-                          <th>Institutional Rationale</th>
+                          <th>Data Source</th>
+                          <th>Raw Scale / Methodology</th>
+                          <th>Normalized Verdict</th>
+                          <th>Analytical Purpose</th>
                         </tr>
                       </thead>
                       <tbody>
                         <tr>
-                          <td><strong>Macro Secular Trend</strong></td>
-                          <td><code>Close &ge; 200-Day SMA</code><br><code>Close &lt; 200-Day SMA</code></td>
-                          <td><span style="color:var(--accent-teal); font-weight:700;">+1.0</span><br><span style="color:var(--accent-coral); font-weight:700;">-1.0</span></td>
-                          <td>Filters long positions into institutional accumulation regimes vs. prohibited CTA leverage zones.</td>
+                          <td><strong>LSEG Refinitiv Analyst Consensus</strong></td>
+                          <td><code>1.0 &le; Score &lt; 2.5</code><br><code>2.5 &le; Score &le; 3.5</code><br><code>Score &gt; 3.5</code></td>
+                          <td><span style="color:var(--accent-teal); font-weight:700;">▲ BUY</span><br><span style="color:var(--accent-amber, #F59E0B); font-weight:700;">● HOLD</span><br><span style="color:var(--accent-coral); font-weight:700;">▼ SELL</span></td>
+                          <td>Aggregated institutional buy-side and sell-side broker ratings normalized into a standardized consensus verdict.</td>
                         </tr>
                         <tr>
-                          <td><strong>Intermediate Trend</strong></td>
-                          <td><code>Close &ge; 50-Day SMA</code><br><code>Close &lt; 50-Day SMA</code></td>
-                          <td><span style="color:var(--accent-teal); font-weight:700;">+0.8</span><br><span style="color:var(--accent-coral); font-weight:700;">-0.8</span></td>
-                          <td>Tests price against quarterly earnings rebalancing consensus and intermediate support.</td>
+                          <td><strong>Morningstar Fair Value Star Rating</strong></td>
+                          <td><code>Discount &ge; 20% &rarr; 5★</code><br><code>8% &le; Disc &lt; 20% &rarr; 4★</code><br><code>&plusmn;8% &rarr; 3★ (Fair)</code><br><code>Premium &gt; 20% &rarr; 1★</code></td>
+                          <td><span style="color:var(--accent-teal); font-weight:700;">Undervalued</span><br><span style="color:var(--accent-amber, #F59E0B); font-weight:700;">Fairly Valued</span><br><span style="color:var(--accent-coral); font-weight:700;">Overvalued</span></td>
+                          <td>Quantifies margin of safety by comparing the live market price against the consensus fair value intrinsic estimate.</td>
                         </tr>
                         <tr>
-                          <td><strong>Momentum Velocity</strong></td>
-                          <td><code>RSI (14) &lt; 35</code><br><code>RSI (14) &gt; 72</code><br><code>50 &le; RSI &le; 72</code><br><code>RSI &lt; 50</code></td>
-                          <td><span style="color:var(--accent-teal); font-weight:700;">+1.0</span><br><span style="color:var(--accent-coral); font-weight:700;">-1.0</span><br><span style="color:var(--accent-teal); font-weight:700;">+0.5</span><br><span style="color:var(--accent-coral); font-weight:700;">-0.5</span></td>
-                          <td>Rewards oversold mean-reversion setups; penalizes overbought exhaustion; confirms upward acceleration vs. decelerating drift.</td>
+                          <td><strong>Wall Street Price Target Envelope</strong></td>
+                          <td><code>Low, Median, Mean, High Targets</code><br><code>Implied Upside % vs Close</code></td>
+                          <td><span style="color:var(--accent-teal); font-weight:700;">Target Envelope</span></td>
+                          <td>Defines institutional 12-month upside expectations and downside boundary risk for portfolio sizing.</td>
                         </tr>
                         <tr>
-                          <td><strong>Cycle Sequence Reality</strong></td>
-                          <td><code>sequence_ok === true</code><br><code>sequence_ok === false</code></td>
-                          <td><span style="color:var(--accent-teal); font-weight:700;">+0.5</span><br><span style="color:var(--accent-coral); font-weight:700;">-0.5</span></td>
-                          <td>Confirms that annual price expansion proceeded chronologically from Low to High, penalizing deceptive markdown drops.</td>
+                          <td><strong>Recent Broker Actions</strong></td>
+                          <td><code>Upgrades, Downgrades, Target Revisions</code></td>
+                          <td><span style="color:var(--text-muted); font-weight:700;">Action Feed</span></td>
+                          <td>Tracks latest rating changes from major institutions (Morgan Stanley, Goldman Sachs, Evercore, BofA, etc.).</td>
                         </tr>
                         <tr>
-                          <td><strong>Watchlist Heuristic</strong><br><small style="color:var(--text-muted);">(When full history is unindexed)</small></td>
-                          <td><code>Diff from Low &lt; 15%</code><br><code>Diff from High &lt; -35%</code></td>
-                          <td><span style="color:var(--accent-teal); font-weight:700;">+1.0</span><br><span style="color:var(--accent-coral); font-weight:700;">-1.0</span></td>
-                          <td>Fallback scoring for newly bookmarked watchlist assets, measuring cyclical value vs. extended drawdown distress.</td>
+                          <td><strong>ETFs &amp; Uncovered Assets</strong></td>
+                          <td>No fundamental analyst coverage</td>
+                          <td><span style="color:var(--text-muted); font-weight:700;">— UNRATED</span></td>
+                          <td>Graceful fallback preventing false rating distortions for broad-market index ETFs (e.g., SPY, QQQ).</td>
                         </tr>
                       </tbody>
                     </table>
@@ -442,12 +443,11 @@
                 </div>
 
                 <div class="indicator-application">
-                  <strong>Decision Thresholds &amp; Operational Rules:</strong>
+                  <strong>Operational Playbook &amp; Inspection:</strong>
                   <ul>
-                    <li><strong style="color:#10B981;"><span class="signal-tag signal-buy" style="padding:1px 6px; font-size:10px;">▲ BUY</span> (Score &ge; +1.2):</strong> Indicates strong multi-factor institutional alignment. Price is trading above key moving averages with supportive momentum velocity and validated cycle sequence. Dips toward 20-EMA or 50-SMA offer optimal entry risk/reward.</li>
-                    <li><strong style="color:#EF4444;"><span class="signal-tag signal-sell" style="padding:1px 6px; font-size:10px;">▼ SELL</span> (Score &le; -1.2):</strong> Indicates structural breakdown. The asset is trapped below both intermediate and secular benchmarks with negative momentum or broken cycle sequences. Long positions should be trimmed, hedged, or avoided.</li>
-                    <li><strong style="color:#F59E0B;"><span class="signal-tag signal-hold" style="padding:1px 6px; font-size:10px;">● HOLD</span> (-1.2 &lt; Score &lt; +1.2):</strong> Indicates factor friction (e.g. price above 200-SMA but below 50-SMA, or overextended RSI in a consolidating base). The engine advises patient observation, waiting for a directional breakout or moving-average confluence before deploying fresh capital.</li>
-                    <li><strong>Interactive Factor Tooltip:</strong> Hover your cursor over any signal tag in the summary card to immediately inspect the live mathematical score and contributing factor breakdown (e.g., <code>Signal: BUY (Score: +2.8) — Above 200-SMA · Above 50-SMA · RSI 53.2 · Sequence OK</code>).</li>
+                    <li><strong>Live Badge Inspection:</strong> Click the signal badge beside the stock name (<span class="signal-tag signal-buy" style="padding:1px 6px; font-size:10px;">▲ BUY ↗</span>) or in the Watchlist drawer to open the comprehensive modal inspector.</li>
+                    <li><strong>Distribution Breakdown:</strong> View the exact count and percentage breakdown of Strong Buy, Buy, Hold, Underperform, and Sell ratings.</li>
+                    <li><strong>Target Upside &amp; Margin of Safety:</strong> Compare the current price against the median analyst price target and intrinsic fair value estimate.</li>
                   </ul>
                 </div>
               </div>
@@ -626,9 +626,9 @@
                     <td>Systematic volatility sensitivity relative to the broad market index.</td>
                   </tr>
                   <tr>
-                    <td><strong>Buy / Sell / Hold Signal Score</strong></td>
-                    <td><code>Score = W_{200} + W_{50} + W_{RSI} + W_{Seq}</code></td>
-                    <td>Confluence weighting: <code>Score &ge; +1.2 &rarr; BUY</code>, <code>Score &le; -1.2 &rarr; SELL</code>, otherwise <code>HOLD</code>.</td>
+                    <td><strong>Institutional Signal Review</strong></td>
+                    <td><code>LSEG Score: 1.0 (Strong Buy) – 5.0 (Strong Sell)</code></td>
+                    <td>Institutional consensus normalized to <code>BUY</code> (&lt; 2.5), <code>HOLD</code> (2.5–3.5), <code>SELL</code> (&gt; 3.5), or <code>UNRATED</code>.</td>
                   </tr>
                 </tbody>
               </table>

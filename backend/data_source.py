@@ -345,6 +345,11 @@ def fetch_ticker_metadata_bundle(ticker: str) -> dict:
 
     quote_details = fetch_ticker_quote_details(clean_sym, ticker_obj=t, info=info)
     similar_stocks = fetch_similar_stocks(clean_sym)
+    try:
+        from signal_review import fetch_signal_review
+        signal_review = fetch_signal_review(clean_sym, info=info, ticker_obj=t)
+    except Exception:
+        signal_review = None
 
     return {
         "company_name": info.get("longName") or info.get("shortName") or None,
@@ -352,6 +357,7 @@ def fetch_ticker_metadata_bundle(ticker: str) -> dict:
         "all_time_low": info.get("allTimeLow"),
         "quote_details": quote_details,
         "similar_stocks": similar_stocks,
+        "signal_review": signal_review,
     }
 
 

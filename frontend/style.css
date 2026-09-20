@@ -1246,6 +1246,27 @@ body {
   border: 1px solid rgba(245, 158, 11, 0.35);
 }
 
+.signal-tag.signal-unrated {
+  background: rgba(107, 114, 128, 0.14);
+  color: var(--text-muted);
+  border: 1px solid var(--border-default);
+}
+
+.signal-tag--interactive {
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.signal-tag--interactive:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.12);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.18);
+}
+
+.signal-tag--interactive:active {
+  transform: translateY(0);
+}
+
 /* Compact signal badge for watchlist rows */
 .signal-tag--sm {
   font-size: 10px;
@@ -3088,5 +3109,428 @@ body {
 .watchlist-drawer.wl-drag-active {
   border-color: var(--accent-primary) !important;
   box-shadow: 0 0 0 2px var(--accent-primary, #6366f1), var(--shadow-lg) !important;
+}
+
+/* ── Signal Review Modal / Inspector ────────────────────────────────────── */
+.signal-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1100;
+  padding: 16px;
+  animation: wlFadeIn 0.2s ease;
+}
+
+.signal-modal-backdrop[hidden] {
+  display: none !important;
+}
+
+.signal-modal-container {
+  background: var(--bg-card);
+  border: 1px solid var(--border-strong);
+  border-radius: 14px;
+  width: 100%;
+  max-width: 660px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow-xl), 0 24px 48px -12px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+  animation: modalSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes modalSlideUp {
+  from { opacity: 0; transform: translateY(16px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.signal-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 22px 14px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-card-subtle, rgba(255, 255, 255, 0.02));
+}
+
+.signal-modal-ticker-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.signal-modal-ticker {
+  font-family: var(--font-mono);
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--accent);
+  margin: 0;
+  letter-spacing: 0.04em;
+}
+
+.signal-modal-verdict-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 800;
+  padding: 3px 10px;
+  border-radius: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.signal-modal-verdict-badge.badge-buy {
+  background: rgba(16, 185, 129, 0.16);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  color: #10B981;
+}
+
+.signal-modal-verdict-badge.badge-hold {
+  background: rgba(245, 158, 11, 0.16);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  color: #F59E0B;
+}
+
+.signal-modal-verdict-badge.badge-sell {
+  background: rgba(239, 68, 68, 0.16);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #EF4444;
+}
+
+.signal-modal-verdict-badge.badge-unrated {
+  background: rgba(107, 114, 128, 0.16);
+  border: 1px solid var(--border-default);
+  color: var(--text-muted);
+}
+
+.signal-modal-score {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--bg-hover);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.signal-modal-company {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin: 4px 0 0;
+}
+
+.signal-modal-close {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  font-size: 22px;
+  line-height: 1;
+  padding: 2px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.signal-modal-close:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+  border-color: var(--border-default);
+}
+
+.signal-modal-sources-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 22px;
+  background: rgba(0, 0, 0, 0.08);
+  border-bottom: 1px solid var(--border-subtle);
+  flex-wrap: wrap;
+}
+
+[data-theme="dark"] .signal-modal-sources-bar {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.source-tag {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+
+.signal-modal-body {
+  padding: 18px 22px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.signal-section-box {
+  background: var(--bg-card-subtle, rgba(255, 255, 255, 0.02));
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+
+.signal-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.signal-section-title {
+  font-size: 12.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-primary);
+}
+
+.signal-section-sub {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.signal-analyst-count {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.signal-summary-text {
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+/* Distribution Bar */
+.signal-dist-bar {
+  display: flex;
+  height: 14px;
+  border-radius: 7px;
+  overflow: hidden;
+  background: var(--bg-hover);
+  margin-bottom: 10px;
+}
+
+.dist-segment {
+  height: 100%;
+  transition: width 0.4s ease;
+}
+
+.dist-strong-buy { background: #059669; }
+.dist-buy { background: #10B981; }
+.dist-hold { background: #F59E0B; }
+.dist-sell { background: #F97316; }
+.dist-strong-sell { background: #EF4444; }
+
+.signal-dist-legend {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 11.5px;
+  color: var(--text-secondary);
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+/* 2-column grid for targets and valuation */
+.signal-grid-2col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+@media (max-width: 620px) {
+  .signal-grid-2col {
+    grid-template-columns: 1fr;
+  }
+}
+
+.signal-upside-badge {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+
+.signal-upside-badge.positive {
+  background: rgba(16, 185, 129, 0.16);
+  color: #10B981;
+}
+
+.signal-upside-badge.negative {
+  background: rgba(239, 68, 68, 0.16);
+  color: #EF4444;
+}
+
+.target-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+}
+
+.target-stat-cell {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-hover);
+  padding: 6px 8px;
+  border-radius: 6px;
+  text-align: center;
+}
+
+.target-stat-cell.highlight {
+  border: 1px solid rgba(99, 102, 241, 0.35);
+  background: rgba(99, 102, 241, 0.08);
+}
+
+.target-stat-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 2px;
+}
+
+.target-stat-val {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+/* Star Rating & Valuation Box */
+.signal-val-badge {
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: rgba(99, 102, 241, 0.12);
+  color: var(--accent);
+}
+
+.star-rating-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.star-rating-stars {
+  font-size: 18px;
+  letter-spacing: 2px;
+  color: #F59E0B;
+}
+
+.star-rating-score {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.valuation-meta-row {
+  display: flex;
+  gap: 14px;
+}
+
+.val-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.val-metric-label {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.val-metric-val {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+/* Broker Actions Table */
+.broker-actions-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.broker-actions-table th,
+.broker-actions-table td {
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border-subtle);
+  text-align: left;
+}
+
+.broker-actions-table th {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.broker-actions-table td.num {
+  text-align: right;
+  font-family: var(--font-mono);
+  font-weight: 700;
+}
+
+.broker-actions-table tr:last-child td {
+  border-bottom: none;
+}
+
+.signal-modal-footer {
+  padding: 12px 22px;
+  background: var(--bg-card-subtle, rgba(255, 255, 255, 0.02));
+  border-top: 1px solid var(--border-subtle);
+}
+
+.signal-disclaimer-note {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.4;
+  margin: 0;
 }
 

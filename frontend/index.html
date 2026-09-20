@@ -457,7 +457,7 @@
               <div class="symbol-row">
                 <span class="summary-symbol" id="sumTicker">—</span>
                 <span class="summary-source-tag" id="sumSource">Live</span>
-                <span id="stockSignalBadge" class="signal-tag" style="display: none;" aria-label="Investment Signal"></span>
+                <span id="stockSignalBadge" class="signal-tag signal-tag--interactive" style="display: none;" role="button" tabindex="0" title="Click to inspect full Institutional Signal Review &amp; Price Targets" aria-label="Institutional Signal Review"></span>
                 <button type="button" id="watchlistStarBtn" class="star-btn" title="Add to Watchlist" hidden
                   aria-label="Add to Watchlist" aria-pressed="false">
                   <svg class="star-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -700,6 +700,149 @@
       </main>
 
     </main>
+
+    <!-- Signal Review Modal / Inspector -->
+    <div class="signal-modal-backdrop" id="signalReviewModal" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="signalModalTicker">
+      <div class="signal-modal-container">
+        <div class="signal-modal-header">
+          <div class="signal-modal-title-group">
+            <div class="signal-modal-ticker-row">
+              <h2 class="signal-modal-ticker" id="signalModalTicker">—</h2>
+              <span class="signal-modal-verdict-badge" id="signalModalVerdictBadge">HOLD</span>
+              <span class="signal-modal-score" id="signalModalScore">Score: 2.2 / 5.0</span>
+            </div>
+            <p class="signal-modal-company" id="signalModalCompany">—</p>
+          </div>
+          <button type="button" class="signal-modal-close" id="signalModalCloseBtn" aria-label="Close Signal Review">&times;</button>
+        </div>
+
+        <div class="signal-modal-sources-bar">
+          <span class="source-tag">LSEG Refinitiv</span>
+          <span class="source-tag">Yahoo Finance Analyst Consensus</span>
+          <span class="source-tag">Morningstar / Fair Value Model</span>
+        </div>
+
+        <div class="signal-modal-body">
+          <!-- Summary card -->
+          <div class="signal-section-box">
+            <div class="signal-section-header">
+              <span class="signal-section-title">Consensus Summary</span>
+              <span class="signal-analyst-count" id="signalAnalystCount">—</span>
+            </div>
+            <p class="signal-summary-text" id="signalSummaryText">Loading institutional consensus...</p>
+          </div>
+
+          <!-- Analyst Breakdown Distribution -->
+          <div class="signal-section-box">
+            <div class="signal-section-header">
+              <span class="signal-section-title">Wall Street Analyst Distribution</span>
+              <span class="signal-section-sub">LSEG Refinitiv 1.0 (Strong Buy) &rarr; 5.0 (Strong Sell)</span>
+            </div>
+            <div class="signal-dist-bar" id="signalDistBar">
+              <div class="dist-segment dist-strong-buy" id="distStrongBuy" title="Strong Buy" style="width: 0%;"></div>
+              <div class="dist-segment dist-buy" id="distBuy" title="Buy" style="width: 0%;"></div>
+              <div class="dist-segment dist-hold" id="distHold" title="Hold" style="width: 0%;"></div>
+              <div class="dist-segment dist-sell" id="distSell" title="Sell" style="width: 0%;"></div>
+              <div class="dist-segment dist-strong-sell" id="distStrongSell" title="Strong Sell" style="width: 0%;"></div>
+            </div>
+            <div class="signal-dist-legend" id="signalDistLegend">
+              <span class="legend-item"><span class="legend-dot dist-strong-buy"></span> Strong Buy: <b id="cntStrongBuy">0</b></span>
+              <span class="legend-item"><span class="legend-dot dist-buy"></span> Buy: <b id="cntBuy">0</b></span>
+              <span class="legend-item"><span class="legend-dot dist-hold"></span> Hold: <b id="cntHold">0</b></span>
+              <span class="legend-item"><span class="legend-dot dist-sell"></span> Sell: <b id="cntSell">0</b></span>
+              <span class="legend-item"><span class="legend-dot dist-strong-sell"></span> Strong Sell: <b id="cntStrongSell">0</b></span>
+            </div>
+          </div>
+
+          <!-- Price Targets & Valuation Grid -->
+          <div class="signal-grid-2col">
+            <!-- Price Targets -->
+            <div class="signal-section-box">
+              <div class="signal-section-header">
+                <span class="signal-section-title">Analyst Price Targets</span>
+                <span class="signal-upside-badge" id="signalUpsideBadge">—</span>
+              </div>
+              <div class="target-stat-grid">
+                <div class="target-stat-cell">
+                  <span class="target-stat-label">Current</span>
+                  <span class="target-stat-val" id="targetCurVal">—</span>
+                </div>
+                <div class="target-stat-cell">
+                  <span class="target-stat-label">Low</span>
+                  <span class="target-stat-val" id="targetLowVal">—</span>
+                </div>
+                <div class="target-stat-cell highlight">
+                  <span class="target-stat-label">Mean</span>
+                  <span class="target-stat-val" id="targetMeanVal">—</span>
+                </div>
+                <div class="target-stat-cell highlight">
+                  <span class="target-stat-label">Median</span>
+                  <span class="target-stat-val" id="targetMedianVal">—</span>
+                </div>
+                <div class="target-stat-cell">
+                  <span class="target-stat-label">High</span>
+                  <span class="target-stat-val" id="targetHighVal">—</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Morningstar Star Rating & Valuation -->
+            <div class="signal-section-box">
+              <div class="signal-section-header">
+                <span class="signal-section-title">Fair Value & Star Rating</span>
+                <span class="signal-val-badge" id="signalValStatus">—</span>
+              </div>
+              <div class="valuation-content">
+                <div class="star-rating-row">
+                  <div class="star-rating-stars" id="signalStarRating" aria-label="Star Rating">★★★☆☆</div>
+                  <span class="star-rating-score" id="signalStarScore">3 / 5 Stars</span>
+                </div>
+                <div class="valuation-meta-row">
+                  <div class="val-metric">
+                    <span class="val-metric-label">Fair Value Est.</span>
+                    <span class="val-metric-val" id="signalFairValueVal">—</span>
+                  </div>
+                  <div class="val-metric">
+                    <span class="val-metric-label">Discount to Value</span>
+                    <span class="val-metric-val" id="signalDiscountVal">—</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Recent Wall Street Broker Actions -->
+          <div class="signal-section-box" id="signalBrokerSection">
+            <div class="signal-section-header">
+              <span class="signal-section-title">Recent Wall Street Firm Actions</span>
+              <span class="signal-section-sub">Upgrades, Downgrades &amp; Price Targets</span>
+            </div>
+            <div class="table-responsive">
+              <table class="broker-actions-table" id="signalBrokerTable">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Firm</th>
+                    <th>Action</th>
+                    <th>Grade</th>
+                    <th class="num">Target</th>
+                  </tr>
+                </thead>
+                <tbody id="signalBrokerTbody">
+                  <tr><td colspan="5" class="empty-cell">No recent broker actions recorded</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="signal-modal-footer">
+          <p class="signal-disclaimer-note">
+            Ratings and price targets aggregated from LSEG Refinitiv, Yahoo Finance, and intrinsic valuation models. Provided solely for informational and research purposes; not financial advice.
+          </p>
+        </div>
+      </div>
+    </div>
 
     <!-- Polished Footer -->
     <footer class="app-footer">

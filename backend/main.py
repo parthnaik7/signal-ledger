@@ -35,6 +35,7 @@ from data_source import (
 )
 from export import build_pdf, build_xlsx
 from session_manager import session_manager
+from signal_review import fetch_signal_review
 
 app = FastAPI(title="SignalLedger API")
 
@@ -78,6 +79,7 @@ class AnalysisResponse(BaseModel):
     quote_details: dict[str, str] | None = None
     similar_stocks: list[str] = []
     company_name: str | None = None
+    signal_review: dict | None = None
 
 
 
@@ -92,6 +94,7 @@ def _build_response(
     company_name: str | None = None,
     all_time_high: float | None = None,
     all_time_low: float | None = None,
+    signal_review: dict | None = None,
 ) -> AnalysisResponse:
     if df is None or df.empty:
         raise HTTPException(status_code=400, detail="Historical dataset is empty.")
@@ -186,6 +189,7 @@ def _build_response(
         quote_details=quote_details,
         similar_stocks=similar_stocks or [],
         company_name=company_name,
+        signal_review=signal_review,
     )
 
 
@@ -260,6 +264,36 @@ def search_ticker(response: Response, q: str = Query("", min_length=1, max_lengt
     return {"suggestions": []}
 
 
+@app.get("/api/signal-review")
+def get_signal_review(
+    response: Response,
+    ticker: str = Query(..., min_length=1, max_length=12, description="Stock ticker symbol"),
+    refresh: bool = Query(False, description="Bypass cache and force fresh data fetch"),
+):
+    """
+    Fetches the unified institutional Signal Review object from LSEG Refinitiv,
+    Yahoo Finance, and Morningstar Fair Value framework.
+    Cached for fast sub-millisecond response.
+    """
+    start_time = time.time()
+    clean_ticker = ticker.strip().upper()
+    cache_key = f"signal_review:{clean_ticker}"
+
+    if not refresh:
+        cached = cache_manager.get(cache_key)
+        if cached is not None:
+            if response:
+                response.headers["X-Cache"] = "HIT"
+                response.headers["X-Response-Time-Ms"] = str(round((time.time() - start_time) * 1000, 2))
+            return cached
+
+    review = fetch_signal_review(clean_ticker)
+    cache_manager.set(cache_key, review, ttl_seconds=CacheTier.SIGNAL_REVIEW)
+    if response:
+        response.headers["X-Cache"] = "MISS"
+        response.headers["X-Response-Time-Ms"] = str(round((time.time() - start_time) * 1000, 2))
+    return review
+
 
 @app.get("/api/analyze", response_model=AnalysisResponse)
 def analyze(
@@ -287,7 +321,7 @@ def analyze(
     except DataFetchError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
-    # Consolidated metadata bundle: single info query for quote details, similar stocks, ATH, ATL, name
+    # Consolidated metadata bundle: single info query for quote details, similar stocks, ATH, ATL, name, signal_review
     meta = fetch_ticker_metadata_bundle(clean_ticker)
 
     result = _build_response(
@@ -301,6 +335,7 @@ def analyze(
         company_name=meta["company_name"],
         all_time_high=meta["all_time_high"],
         all_time_low=meta["all_time_low"],
+        signal_review=meta.get("signal_review"),
     )
 
     cache_manager.set(cache_key, result, ttl_seconds=CacheTier.ANALYSIS)
@@ -335,7 +370,16 @@ async def analyze_upload(
         inferred_ticker = file.filename.split("-")[0].split(".")[0]
     inferred_ticker = inferred_ticker.strip().upper()[:12] or "UPLOAD"
 
-    return _build_response(df, inferred_ticker, source="upload", years=years, months=months)
+    signal_review = fetch_signal_review(inferred_ticker) if inferred_ticker != "UPLOAD" else None
+
+    return _build_response(
+        df,
+        inferred_ticker,
+        source="upload",
+        years=years,
+        months=months,
+        signal_review=signal_review,
+    )
 
 
 def _get_live_quote_safe(ticker: str) -> dict:

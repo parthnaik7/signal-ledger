@@ -100,6 +100,38 @@ const els = {
   rsiChartContainer: document.getElementById("rsiChartContainer"),
   rsiCurrentValue: document.getElementById("rsiCurrentValue"),
   stockSignalBadge: document.getElementById("stockSignalBadge"),
+
+  // Signal Review Modal Elements
+  signalReviewModal: document.getElementById("signalReviewModal"),
+  signalModalCloseBtn: document.getElementById("signalModalCloseBtn"),
+  signalModalTicker: document.getElementById("signalModalTicker"),
+  signalModalVerdictBadge: document.getElementById("signalModalVerdictBadge"),
+  signalModalScore: document.getElementById("signalModalScore"),
+  signalModalCompany: document.getElementById("signalModalCompany"),
+  signalAnalystCount: document.getElementById("signalAnalystCount"),
+  signalSummaryText: document.getElementById("signalSummaryText"),
+  distStrongBuy: document.getElementById("distStrongBuy"),
+  distBuy: document.getElementById("distBuy"),
+  distHold: document.getElementById("distHold"),
+  distSell: document.getElementById("distSell"),
+  distStrongSell: document.getElementById("distStrongSell"),
+  cntStrongBuy: document.getElementById("cntStrongBuy"),
+  cntBuy: document.getElementById("cntBuy"),
+  cntHold: document.getElementById("cntHold"),
+  cntSell: document.getElementById("cntSell"),
+  cntStrongSell: document.getElementById("cntStrongSell"),
+  signalUpsideBadge: document.getElementById("signalUpsideBadge"),
+  targetCurVal: document.getElementById("targetCurVal"),
+  targetLowVal: document.getElementById("targetLowVal"),
+  targetMeanVal: document.getElementById("targetMeanVal"),
+  targetMedianVal: document.getElementById("targetMedianVal"),
+  targetHighVal: document.getElementById("targetHighVal"),
+  signalValStatus: document.getElementById("signalValStatus"),
+  signalStarRating: document.getElementById("signalStarRating"),
+  signalStarScore: document.getElementById("signalStarScore"),
+  signalFairValueVal: document.getElementById("signalFairValueVal"),
+  signalDiscountVal: document.getElementById("signalDiscountVal"),
+  signalBrokerTbody: document.getElementById("signalBrokerTbody"),
 };
 
 // ---------------------------------------------------------------------------
@@ -450,7 +482,7 @@ function isWatchlisted(ticker) {
 
 function snapshotMetrics(analysis) {
   if (!analysis) return null;
-  const sigInfo = computeStockSignal(analysis, priceHistoryData);
+  const sigInfo = computeStockSignal(analysis);
   return {
     latest_close:            analysis.latest_close ?? null,
     latest_low:              analysis.latest_low ?? null,
@@ -467,6 +499,7 @@ function snapshotMetrics(analysis) {
     best_move_alltime_pct:   analysis.best_move_overall?.pct_diff ?? null,
     signal:                  sigInfo ? sigInfo.signal : null,
     signalReason:            sigInfo ? sigInfo.reason : null,
+    signal_review:           analysis.signal_review || null,
     refreshedAt:             Date.now(),
   };
 }
@@ -656,12 +689,12 @@ function updateWatchlistCardDOM(ticker, metrics, status = "success", errorMsg = 
     card.querySelector(".wl-item-error-tag")?.remove();
 
     // Update signal tag
-    const sig = metrics.signal || "HOLD";
+    const sig = metrics.signal_review?.verdict || metrics.signal || "HOLD";
     const sigTag = card.querySelector(".signal-tag");
     if (sigTag) {
-      sigTag.className = `signal-tag signal-tag--sm signal-${sig.toLowerCase()}`;
-      sigTag.title = metrics.signalReason || "";
-      sigTag.innerHTML = `<span class="signal-icon">${sig === "BUY" ? "▲" : sig === "SELL" ? "▼" : "●"}</span> ${sig}`;
+      sigTag.className = `signal-tag signal-tag--sm signal-${sig.toLowerCase()}${metrics.signal_review ? " signal-tag--interactive" : ""}`;
+      sigTag.title = metrics.signalReason || (metrics.signal_review ? "Click to view Signal Review" : "");
+      sigTag.innerHTML = `<span class="signal-icon">${sig === "BUY" ? "▲" : sig === "SELL" ? "▼" : sig === "UNRATED" ? "—" : "●"}</span> ${sig}`;
     }
 
     // Update metrics row
@@ -886,9 +919,12 @@ async function refreshAllWatchlist(btnEl, options = {}) {
 }
 
 function getWatchlistItemSignal(w) {
+  if (w.metrics && w.metrics.signal_review && w.metrics.signal_review.verdict) {
+    return w.metrics.signal_review.verdict;
+  }
   if (w.metrics && w.metrics.signal) return w.metrics.signal;
   if (w.metrics) {
-    const computed = computeStockSignal(w.metrics, []);
+    const computed = computeStockSignal(w.metrics);
     w.metrics.signal = computed.signal;
     w.metrics.signalReason = computed.reason;
     return computed.signal;
@@ -917,7 +953,7 @@ function renderWatchlistUI() {
         <svg class="wl-empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
           <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
         </svg>
-        <p>Your watchlist is empty.<br>Click the \u2B50 next to a ticker to add it.</p>
+        <p>Your watchlist is empty.<br>Click the ⭐ next to a ticker to add it.</p>
       </div>`;
     return;
   }
@@ -954,13 +990,14 @@ function renderWatchlistUI() {
     const reason = w.metrics?.signalReason || "";
     const safeTicker = escapeHtml(w.ticker);
     const safeCompany = escapeHtml(w.companyName || "");
+    const hasReview = Boolean(w.metrics?.signal_review);
     return `
     <div class="wl-item" data-ticker="${safeTicker}">
       <div class="wl-top-row">
         <div class="wl-left">
           <span class="wl-symbol">${safeTicker}</span>
-          <span class="signal-tag signal-tag--sm signal-${sig.toLowerCase()}" title="${escapeHtml(reason)}">
-            <span class="signal-icon">${sig === "BUY" ? "▲" : sig === "SELL" ? "▼" : "●"}</span> ${sig}
+          <span class="signal-tag signal-tag--sm signal-${sig.toLowerCase()}${hasReview ? " signal-tag--interactive" : ""}" title="${escapeHtml(reason || (hasReview ? "Click to view Signal Review" : ""))}">
+            <span class="signal-icon">${sig === "BUY" ? "▲" : sig === "SELL" ? "▼" : sig === "UNRATED" ? "—" : "●"}</span> ${sig}
           </span>
           ${w.companyName ? `<span class="wl-name">${safeCompany}</span>` : ""}
         </div>
@@ -973,6 +1010,21 @@ function renderWatchlistUI() {
       ${buildMetricsRow(w.metrics, w.ticker)}
     </div>`;
   }).join("");
+
+  // Attach click listener on watchlist signal tags to open the review modal
+  container.querySelectorAll(".wl-item").forEach((item) => {
+    const sigTag = item.querySelector(".signal-tag");
+    if (sigTag) {
+      sigTag.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const ticker = item.dataset.ticker;
+        const entry = getWatchlist().find((w) => w.ticker === ticker);
+        if (entry) {
+          openSignalReviewModal(entry.metrics?.signal_review || null, entry.ticker, entry.companyName);
+        }
+      });
+    }
+  });
 
   container.querySelectorAll(".wl-refresh-btn").forEach((btn) => {
     btn.addEventListener("click", (e) => {
@@ -2362,114 +2414,67 @@ function updateRegimeBadge() {
 }
 
 // ---------------------------------------------------------------------------
-// Lightweight Quantitative Signal Engine (Buy / Sell / Hold)
+// Unified Signal Review Engine (LSEG Refinitiv, Morningstar & Wall St)
 // ---------------------------------------------------------------------------
-function computeStockSignal(data, history) {
+function computeStockSignal(data) {
   if (!data) {
-    return { signal: "HOLD", icon: "●", score: 0, reason: "Insufficient data" };
+    return { signal: "UNRATED", icon: "—", score: null, reason: "Insufficient data", review: null };
   }
 
-  const latestClose = data.latest_close || (history && history.length > 0 && history[history.length - 1].close);
-  if (latestClose == null) {
-    return { signal: "HOLD", icon: "●", score: 0, reason: "No price data" };
-  }
+  // 1. Primary: Use institutional Signal Review if present
+  const review = data.signal_review;
+  if (review && review.verdict) {
+    const verdict = review.verdict;
+    let icon = "●";
+    if (verdict === "BUY") icon = "▲";
+    else if (verdict === "SELL") icon = "▼";
+    else if (verdict === "UNRATED") icon = "—";
 
-  let score = 0;
-  const factors = [];
-
-  // 1. Macro Trend: Price vs. 200-SMA (or 50-SMA if series < 200)
-  if (history && history.length >= 20) {
-    const has200 = history.length >= 200;
-    const macroPeriod = has200 ? 200 : (history.length >= 50 ? 50 : 20);
-    const macroSeries = computeSMA(history, macroPeriod);
-    if (macroSeries.length > 0) {
-      const macroSMA = macroSeries[macroSeries.length - 1].y;
-      const diffPct = ((latestClose - macroSMA) / macroSMA) * 100;
-      if (diffPct >= 0) {
-        score += 1;
-        factors.push(`Above ${macroPeriod}-SMA (+${diffPct.toFixed(1)}%)`);
-      } else {
-        score -= 1;
-        factors.push(`Below ${macroPeriod}-SMA (${diffPct.toFixed(1)}%)`);
-      }
+    const parts = [];
+    if (review.score != null) {
+      parts.push(`LSEG: ${review.score.toFixed(2)} (${verdict})`);
+    }
+    const val = review.valuation || {};
+    if (val.star_rating != null) {
+      parts.push(`${val.star_rating}★ ${val.status || ""}`.trim());
+    }
+    const targets = review.price_targets || {};
+    if (targets.implied_upside_pct != null) {
+      const up = targets.implied_upside_pct;
+      parts.push(`Target Upside: ${up >= 0 ? "+" : ""}${up.toFixed(1)}%`);
+    }
+    if (review.analyst_count) {
+      parts.push(`${review.analyst_count} Analysts`);
     }
 
-    // 2. Intermediate Trend: Price vs. 50-SMA (when 200 was used)
-    if (has200) {
-      const sma50Series = computeSMA(history, 50);
-      if (sma50Series.length > 0) {
-        const sma50 = sma50Series[sma50Series.length - 1].y;
-        if (latestClose >= sma50) {
-          score += 0.8;
-          factors.push("Above 50-SMA");
-        } else {
-          score -= 0.8;
-          factors.push("Below 50-SMA");
-        }
-      }
-    }
-
-    // 3. Momentum: 14-period RSI
-    const rsiSeries = computeRSI(history, 14);
-    if (rsiSeries.length > 0) {
-      const latestRSI = rsiSeries[rsiSeries.length - 1].y;
-      if (latestRSI < 35) {
-        score += 1; // Oversold mean-reversion opportunity
-        factors.push(`Oversold RSI ${latestRSI.toFixed(1)}`);
-      } else if (latestRSI > 72) {
-        score -= 1; // Overbought exhaustion / trim zone
-        factors.push(`Overbought RSI ${latestRSI.toFixed(1)}`);
-      } else if (latestRSI >= 50) {
-        score += 0.5; // Bullish momentum
-        factors.push(`RSI ${latestRSI.toFixed(1)}`);
-      } else {
-        score -= 0.5; // Soft momentum
-        factors.push(`RSI ${latestRSI.toFixed(1)}`);
-      }
-    }
+    return {
+      signal: verdict,
+      icon,
+      score: review.score,
+      reason: parts.join(" · ") || review.summary || "Institutional Consensus",
+      review,
+    };
   }
 
-  // 4. Sequence Reality & Cycle Context
-  if (data.yearly && data.yearly.length > 0) {
-    const curYear = data.yearly[data.yearly.length - 1];
-    if (curYear && curYear.sequence_ok) {
-      score += 0.5;
-      factors.push("Sequence OK (Low &rarr; High)");
-    } else if (curYear && curYear.sequence_ok === false) {
-      score -= 0.5;
-      factors.push("Flagged Sequence (High before Low)");
-    }
+  // 2. Secondary: If precomputed/saved in watchlist metrics
+  if (data.signal) {
+    let icon = "●";
+    if (data.signal === "BUY") icon = "▲";
+    else if (data.signal === "SELL") icon = "▼";
+    else if (data.signal === "UNRATED") icon = "—";
+    return {
+      signal: data.signal,
+      icon,
+      score: null,
+      reason: data.signalReason || "",
+      review: null,
+    };
   }
 
-  // Fallback heuristic for watchlist items without full price history array
-  if ((!history || history.length < 20) && data.diff_from_latest_low_pct != null) {
-    if (data.diff_from_latest_low_pct < 15 && (data.diff_from_latest_high_pct == null || data.diff_from_latest_high_pct > -20)) {
-      score += 1;
-      factors.push("Near 52W Low");
-    } else if (data.diff_from_latest_high_pct != null && data.diff_from_latest_high_pct < -35) {
-      score -= 1;
-      factors.push("Extended Drawdown");
-    }
-  }
-
-  let signal = "HOLD";
-  let icon = "●";
-
-  if (score >= 1.2) {
-    signal = "BUY";
-    icon = "▲";
-  } else if (score <= -1.2) {
-    signal = "SELL";
-    icon = "▼";
-  } else {
-    signal = "HOLD";
-    icon = "●";
-  }
-
-  return { signal, icon, score, reason: factors.join(" · ") };
+  return { signal: "UNRATED", icon: "—", score: null, reason: "Unrated asset", review: null };
 }
 
-function updateStockSignalBadge(data, history) {
+function updateStockSignalBadge(data) {
   const badge = els.stockSignalBadge;
   if (!badge) return;
   if (!data) {
@@ -2477,11 +2482,188 @@ function updateStockSignalBadge(data, history) {
     return;
   }
 
-  const res = computeStockSignal(data, history);
+  const res = computeStockSignal(data);
   badge.style.display = "inline-flex";
-  badge.className = `signal-tag signal-${res.signal.toLowerCase()}`;
-  badge.innerHTML = `<span class="signal-icon">${res.icon}</span> ${res.signal}`;
-  badge.title = `Signal: ${res.signal} (Score: ${res.score > 0 ? "+" : ""}${res.score.toFixed(1)}) — ${res.reason || "Neutral balance"}`;
+  badge.className = `signal-tag signal-tag--interactive signal-${res.signal.toLowerCase()}`;
+  badge.innerHTML = `<span class="signal-icon">${res.icon}</span> ${res.signal} <span class="signal-inspect-hint" aria-hidden="true">↗</span>`;
+  badge.title = `Institutional Verdict: ${res.signal}${res.score ? ` (Score: ${res.score.toFixed(2)})` : ""} — ${res.reason}. Click to inspect full review breakdown.`;
+}
+
+function openSignalReviewModal(review, ticker, companyName) {
+  const modal = els.signalReviewModal;
+  if (!modal) return;
+
+  const safeTicker = ticker || currentAnalysis?.ticker || "—";
+  const safeCompany = companyName || currentAnalysis?.company_name || "";
+  const r = review || currentAnalysis?.signal_review;
+
+  if (els.signalModalTicker) els.signalModalTicker.textContent = safeTicker;
+  if (els.signalModalCompany) els.signalModalCompany.textContent = safeCompany;
+
+  if (!r || r.verdict === "UNRATED") {
+    if (els.signalModalVerdictBadge) {
+      els.signalModalVerdictBadge.className = "signal-modal-verdict-badge signal-unrated";
+      els.signalModalVerdictBadge.textContent = "UNRATED";
+    }
+    if (els.signalModalScore) els.signalModalScore.textContent = "No Institutional Coverage";
+    if (els.signalAnalystCount) els.signalAnalystCount.textContent = "0 Analysts";
+    if (els.signalSummaryText) {
+      els.signalSummaryText.textContent = r?.summary || "No institutional analyst coverage, Refinitiv consensus rating, or price targets are currently published for this asset.";
+    }
+
+    if (els.distStrongBuy) els.distStrongBuy.style.width = "0%";
+    if (els.distBuy) els.distBuy.style.width = "0%";
+    if (els.distHold) els.distHold.style.width = "0%";
+    if (els.distSell) els.distSell.style.width = "0%";
+    if (els.distStrongSell) els.distStrongSell.style.width = "0%";
+
+    if (els.cntStrongBuy) els.cntStrongBuy.textContent = "0";
+    if (els.cntBuy) els.cntBuy.textContent = "0";
+    if (els.cntHold) els.cntHold.textContent = "0";
+    if (els.cntSell) els.cntSell.textContent = "0";
+    if (els.cntStrongSell) els.cntStrongSell.textContent = "0";
+
+    if (els.signalUpsideBadge) {
+      els.signalUpsideBadge.textContent = "—";
+      els.signalUpsideBadge.className = "signal-upside-badge";
+    }
+    if (els.targetCurVal) els.targetCurVal.textContent = currentAnalysis?.latest_close ? formatPrice(currentAnalysis.latest_close) : "—";
+    if (els.targetLowVal) els.targetLowVal.textContent = "—";
+    if (els.targetMeanVal) els.targetMeanVal.textContent = "—";
+    if (els.targetMedianVal) els.targetMedianVal.textContent = "—";
+    if (els.targetHighVal) els.targetHighVal.textContent = "—";
+
+    if (els.signalValStatus) {
+      els.signalValStatus.textContent = "Unrated";
+      els.signalValStatus.className = "signal-val-badge";
+    }
+    if (els.signalStarRating) els.signalStarRating.textContent = "☆☆☆☆☆";
+    if (els.signalStarScore) els.signalStarScore.textContent = "N/A";
+    if (els.signalFairValueVal) els.signalFairValueVal.textContent = "—";
+    if (els.signalDiscountVal) els.signalDiscountVal.textContent = "—";
+
+    if (els.signalBrokerTbody) {
+      els.signalBrokerTbody.innerHTML = `<tr><td colspan="5" class="empty-broker-row">No broker actions available for this asset.</td></tr>`;
+    }
+  } else {
+    const verdict = r.verdict;
+    if (els.signalModalVerdictBadge) {
+      els.signalModalVerdictBadge.className = `signal-modal-verdict-badge signal-${verdict.toLowerCase()}`;
+      els.signalModalVerdictBadge.textContent = verdict;
+    }
+    if (els.signalModalScore) {
+      els.signalModalScore.textContent = r.score != null ? `Score: ${r.score.toFixed(2)} / 5.0` : "Institutional Consensus";
+    }
+    if (els.signalAnalystCount) {
+      els.signalAnalystCount.textContent = r.analyst_count ? `${r.analyst_count} Analysts` : "Covered";
+    }
+    if (els.signalSummaryText) {
+      els.signalSummaryText.textContent = r.summary || "";
+    }
+
+    // Recommendations distribution
+    const recs = r.distribution || r.sources?.recommendations || {};
+    const strongBuy = recs.strong_buy ?? recs.strongBuy ?? 0;
+    const buy = recs.buy ?? 0;
+    const hold = recs.hold ?? 0;
+    const sell = recs.sell ?? 0;
+    const strongSell = recs.strong_sell ?? recs.strongSell ?? 0;
+    const total = strongBuy + buy + hold + sell + strongSell || 1;
+
+    if (els.distStrongBuy) els.distStrongBuy.style.width = `${((strongBuy / total) * 100).toFixed(1)}%`;
+    if (els.distBuy) els.distBuy.style.width = `${((buy / total) * 100).toFixed(1)}%`;
+    if (els.distHold) els.distHold.style.width = `${((hold / total) * 100).toFixed(1)}%`;
+    if (els.distSell) els.distSell.style.width = `${((sell / total) * 100).toFixed(1)}%`;
+    if (els.distStrongSell) els.distStrongSell.style.width = `${((strongSell / total) * 100).toFixed(1)}%`;
+
+    if (els.cntStrongBuy) els.cntStrongBuy.textContent = strongBuy;
+    if (els.cntBuy) els.cntBuy.textContent = buy;
+    if (els.cntHold) els.cntHold.textContent = hold;
+    if (els.cntSell) els.cntSell.textContent = sell;
+    if (els.cntStrongSell) els.cntStrongSell.textContent = strongSell;
+
+    // Price targets
+    const targets = r.price_targets || r.sources?.analyst_targets || {};
+    if (els.targetCurVal) els.targetCurVal.textContent = targets.current != null ? formatPrice(targets.current) : (currentAnalysis?.latest_close ? formatPrice(currentAnalysis.latest_close) : "—");
+    if (els.targetLowVal) els.targetLowVal.textContent = targets.low != null ? formatPrice(targets.low) : "—";
+    if (els.targetMeanVal) els.targetMeanVal.textContent = targets.mean != null ? formatPrice(targets.mean) : "—";
+    if (els.targetMedianVal) els.targetMedianVal.textContent = targets.median != null ? formatPrice(targets.median) : "—";
+    if (els.targetHighVal) els.targetHighVal.textContent = targets.high != null ? formatPrice(targets.high) : "—";
+
+    if (els.signalUpsideBadge) {
+      if (targets.implied_upside_pct != null) {
+        const up = targets.implied_upside_pct;
+        els.signalUpsideBadge.textContent = `${up >= 0 ? "+" : ""}${up.toFixed(1)}% Upside`;
+        els.signalUpsideBadge.className = `signal-upside-badge ${up >= 0 ? "positive" : "negative"}`;
+      } else {
+        els.signalUpsideBadge.textContent = "—";
+        els.signalUpsideBadge.className = "signal-upside-badge";
+      }
+    }
+
+    // Morningstar Star Rating & Valuation
+    const ms = r.valuation || r.sources?.morningstar_fair_value || {};
+    const stars = ms.star_rating ?? 3;
+    const filledStars = "★".repeat(Math.max(0, Math.min(5, stars)));
+    const emptyStars = "☆".repeat(Math.max(0, 5 - stars));
+    if (els.signalStarRating) els.signalStarRating.textContent = `${filledStars}${emptyStars}`;
+    if (els.signalStarScore) els.signalStarScore.textContent = `${stars} / 5 Stars`;
+    if (els.signalValStatus) {
+      els.signalValStatus.textContent = ms.status || ms.valuation_status || "Fairly Valued";
+      els.signalValStatus.className = `signal-val-badge ${stars >= 4 ? "undervalued" : stars <= 2 ? "overvalued" : "fair"}`;
+    }
+    if (els.signalFairValueVal) {
+      const fairVal = ms.fair_value ?? ms.fair_value_estimate;
+      els.signalFairValueVal.textContent = fairVal != null ? formatPrice(fairVal) : "—";
+    }
+    if (els.signalDiscountVal) {
+      const disc = ms.discount_pct ?? ms.discount_to_fair_value_pct;
+      if (disc != null) {
+        els.signalDiscountVal.textContent = `${disc >= 0 ? "+" : ""}${disc.toFixed(1)}% (${disc >= 0 ? "Discount" : "Premium"})`;
+      } else {
+        els.signalDiscountVal.textContent = "—";
+      }
+    }
+
+    // Broker activity table
+    const brokerActions = r.recent_broker_actions || r.sources?.broker_actions || [];
+    if (els.signalBrokerTbody) {
+      if (brokerActions.length === 0) {
+        els.signalBrokerTbody.innerHTML = `<tr><td colspan="5" class="empty-broker-row">No recent broker actions recorded.</td></tr>`;
+      } else {
+        els.signalBrokerTbody.innerHTML = brokerActions.map((action) => {
+          const actLower = (action.action || "").toLowerCase();
+          const actionClass = actLower.includes("up")
+            ? "broker-up"
+            : actLower.includes("down")
+            ? "broker-down"
+            : "";
+          const target = action.price_target ?? action.target_price;
+          return `
+            <tr>
+              <td>${escapeHtml(action.date || "—")}</td>
+              <td><strong>${escapeHtml(action.firm || "—")}</strong></td>
+              <td><span class="broker-action-tag ${actionClass}">${escapeHtml(action.action || "—")}</span></td>
+              <td>${escapeHtml(action.to_grade || action.from_grade || "—")}</td>
+              <td class="num">${target != null ? formatPrice(target) : "—"}</td>
+            </tr>
+          `;
+        }).join("");
+      }
+    }
+  }
+
+  modal.hidden = false;
+  modal.setAttribute("aria-hidden", "false");
+  document.body.classList.add("modal-open");
+}
+
+function closeSignalReviewModal() {
+  const modal = els.signalReviewModal;
+  if (!modal) return;
+  modal.hidden = true;
+  modal.setAttribute("aria-hidden", "true");
+  document.body.classList.remove("modal-open");
 }
 
 // ---------------------------------------------------------------------------
@@ -3215,10 +3397,37 @@ if (els.csvToggleBtn && els.csvUploadSection) {
   });
 }
 
+// Signal Review Modal
+if (els.stockSignalBadge) {
+  els.stockSignalBadge.addEventListener("click", () => {
+    if (currentAnalysis) {
+      openSignalReviewModal(currentAnalysis.signal_review, currentAnalysis.ticker, currentAnalysis.company_name);
+    }
+  });
+  els.stockSignalBadge.addEventListener("keydown", (e) => {
+    if ((e.key === "Enter" || e.key === " ") && currentAnalysis) {
+      e.preventDefault();
+      openSignalReviewModal(currentAnalysis.signal_review, currentAnalysis.ticker, currentAnalysis.company_name);
+    }
+  });
+}
+if (els.signalModalCloseBtn) {
+  els.signalModalCloseBtn.addEventListener("click", closeSignalReviewModal);
+}
+if (els.signalReviewModal) {
+  els.signalReviewModal.addEventListener("click", (e) => {
+    if (e.target === els.signalReviewModal) {
+      closeSignalReviewModal();
+    }
+  });
+}
+
 // Keyboard shortcuts (Escape closes open panels)
 window.addEventListener("keydown", (e) => {
   if (e.key === "Escape") {
-    if (els.watchlistPanel && !els.watchlistPanel.hidden) {
+    if (els.signalReviewModal && !els.signalReviewModal.hidden) {
+      closeSignalReviewModal();
+    } else if (els.watchlistPanel && !els.watchlistPanel.hidden) {
       toggleWatchlistPanel(false);
     } else if (!els.historyPanel.hidden) {
       toggleHistoryPanel(false);

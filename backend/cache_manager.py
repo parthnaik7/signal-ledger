@@ -35,6 +35,7 @@ class CacheTier:
     QUOTE = 60.0         # 1 minute for live quotes and intraday bid/ask
     ANALYSIS = 180.0     # 3 minutes for historical daily range ledgers
     METADATA = 3600.0    # 1 hour for company name, ATH, ATL, similar stocks
+    SIGNAL_REVIEW = 1800.0  # 30 minutes for institutional ratings & price targets
 
 
 class IntelligentCacheManager:
