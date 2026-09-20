@@ -86,6 +86,7 @@ class TestSignalReview(unittest.TestCase):
 
     def test_fetch_signal_review_covered_stock(self):
         mock_info = {
+            "symbol": "MOCK",
             "recommendationMean": 2.15,
             "recommendationKey": "buy",
             "numberOfAnalystOpinions": 30,
@@ -122,7 +123,11 @@ class TestSignalReview(unittest.TestCase):
         self.assertEqual(review["valuation"]["status"], "Undervalued")
 
     def test_fetch_signal_review_unrated_asset(self):
-        mock_info = {}
+        mock_info = {
+            "symbol": "SPY",
+            "regularMarketPrice": 550.0,
+            "shortName": "SPDR S&P 500 ETF Trust",
+        }
         mock_ticker = MagicMock()
         mock_ticker.info = mock_info
         mock_ticker.recommendations = None
@@ -137,6 +142,14 @@ class TestSignalReview(unittest.TestCase):
         self.assertIsNone(review["score"])
         self.assertIsNone(review["valuation"]["star_rating"])
         self.assertEqual(review["valuation"]["status"], "Unrated")
+
+    def test_fetch_signal_review_nonexistent_ticker_raises(self):
+        from data_source import DataFetchError
+        mock_info = {}
+        mock_ticker = MagicMock()
+        mock_ticker.info = mock_info
+        with self.assertRaises(DataFetchError):
+            fetch_signal_review("NONEXISTENT_XYZ", info=mock_info, ticker_obj=mock_ticker)
 
 
 if __name__ == "__main__":

@@ -582,7 +582,7 @@ function fmtPct(v, sign = true) {
 
 function buildMetricsRow(m, ticker = "") {
   if (!m) {
-    return `<div class="wl-metrics wl-metrics--empty">No data yet — click Refresh</div>`;
+    return `<div class="wl-metrics wl-metrics--empty">No live data yet — click Refresh (↻)</div>`;
   }
   const lowPct  = m.diff_from_latest_low_pct;
   const highPct = m.diff_from_latest_high_pct;
@@ -929,7 +929,7 @@ function getWatchlistItemSignal(w) {
     w.metrics.signalReason = computed.reason;
     return computed.signal;
   }
-  return "HOLD";
+  return "UNRATED";
 }
 
 function renderWatchlistUI() {
@@ -938,11 +938,10 @@ function renderWatchlistUI() {
   if (!container) return;
 
   // Calculate signal counts across the entire watchlist
-  const counts = { all: fullList.length, BUY: 0, HOLD: 0, SELL: 0 };
+  const counts = { all: fullList.length, BUY: 0, HOLD: 0, SELL: 0, UNRATED: 0 };
   fullList.forEach((w) => {
     const sig = getWatchlistItemSignal(w);
     if (counts[sig] !== undefined) counts[sig]++;
-    else counts.HOLD++;
   });
 
   updateFilterButtons(counts);
@@ -1466,18 +1465,18 @@ function exportWatchlistJson() {
     return;
   }
 
+  // Strictly ticker symbols only — zero metadata, cached metrics, or computed fields
   const payload = {
     app: "SignalLedger",
     version: "1.0",
     exportedAt: new Date().toISOString(),
     count: list.length,
     tickers: list.map((w) => w.ticker),
-    watchlist: list,
   };
 
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8;" });
-  downloadBlob(blob, `signalledger-watchlist-${getIsoDate()}.json`);
-  showNotification(`Exported ${list.length} watchlist ticker${list.length > 1 ? "s" : ""} as JSON`, "success");
+  downloadBlob(blob, `signalledger-tickers-${getIsoDate()}.json`);
+  showNotification(`Exported ${list.length} ticker symbol${list.length > 1 ? "s" : ""} (JSON)`, "success");
 }
 
 function exportWatchlistCsv() {
@@ -1487,50 +1486,13 @@ function exportWatchlistCsv() {
     return;
   }
 
-  const headers = [
-    "Ticker",
-    "Company",
-    "Signal",
-    "Latest_Close",
-    "52W_Low",
-    "Diff_From_52W_Low_Pct",
-    "52W_High",
-    "Diff_From_52W_High_Pct",
-    "All_Time_Low",
-    "All_Time_High",
-    "Best_Move_Year_Pct",
-    "Best_Move_AllTime_Pct",
-    "Signal_Reason",
-    "Added_At",
-  ];
+  // Strictly ticker symbols only — single column, zero metadata, cached metrics, or computed fields
+  const rows = list.map((w) => `"${String(w.ticker).replace(/"/g, '""')}"`);
+  const csvContent = ["Ticker", ...rows].join("\r\n");
 
-  const rows = list.map((w) => {
-    const m = w.metrics || {};
-    const sig = getWatchlistItemSignal(w);
-    const moveYr = getBestMoveYearPct(w);
-    const moveAll = getBestMoveAlltimePct(w);
-    return [
-      w.ticker,
-      w.companyName || "",
-      sig,
-      m.latest_close ?? "",
-      m.latest_low ?? "",
-      m.diff_from_latest_low_pct ?? "",
-      m.latest_high ?? "",
-      m.diff_from_latest_high_pct ?? "",
-      m.all_time_low ?? "",
-      m.all_time_high ?? "",
-      moveYr != null ? Number(moveYr).toFixed(2) : "",
-      moveAll != null ? Number(moveAll).toFixed(2) : "",
-      m.signalReason || "",
-      w.addedAt ? new Date(w.addedAt).toISOString() : "",
-    ].map((val) => `"${String(val).replace(/"/g, '""')}"`).join(",");
-  });
-
-  const csvContent = [headers.join(","), ...rows].join("\r\n");
   const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-  downloadBlob(blob, `signalledger-watchlist-${getIsoDate()}.csv`);
-  showNotification(`Exported ${list.length} watchlist ticker${list.length > 1 ? "s" : ""} as CSV`, "success");
+  downloadBlob(blob, `signalledger-tickers-${getIsoDate()}.csv`);
+  showNotification(`Exported ${list.length} ticker symbol${list.length > 1 ? "s" : ""} (CSV)`, "success");
 }
 
 function parseCsvLine(text) {
@@ -1563,7 +1525,7 @@ function processWatchlistText(content, filename = "") {
     return;
   }
 
-  let candidates = [];
+  let extractedTickers = [];
   const trimmed = content.trim();
 
   // 1. Attempt JSON parsing
@@ -1571,51 +1533,50 @@ function processWatchlistText(content, filename = "") {
     try {
       const parsed = JSON.parse(trimmed);
       if (Array.isArray(parsed)) {
-        candidates = parsed
-          .map((item) => {
-            if (typeof item === "string") return { ticker: item };
-            if (item && typeof item === "object") {
-              return {
-                ticker: item.ticker || item.symbol || item.Ticker || item.Symbol,
-                companyName: item.companyName || item.name || item.Company || "",
-                addedAt: item.addedAt,
-                metrics: item.metrics || null,
-              };
-            }
-            return null;
-          })
-          .filter(Boolean);
+        parsed.forEach((item) => {
+          if (typeof item === "string") {
+            extractedTickers.push(item);
+          } else if (item && typeof item === "object") {
+            const sym = item.ticker || item.symbol || item.Ticker || item.Symbol;
+            if (sym && typeof sym === "string") extractedTickers.push(sym);
+          }
+        });
       } else if (parsed && typeof parsed === "object") {
-        if (Array.isArray(parsed.watchlist)) {
-          candidates = parsed.watchlist;
-        } else if (Array.isArray(parsed.tickers)) {
-          candidates = parsed.tickers.map((t) => ({ ticker: t }));
+        if (Array.isArray(parsed.tickers)) {
+          parsed.tickers.forEach((t) => {
+            if (typeof t === "string") extractedTickers.push(t);
+            else if (t && typeof t === "object" && t.ticker) extractedTickers.push(t.ticker);
+          });
         } else if (Array.isArray(parsed.symbols)) {
-          candidates = parsed.symbols.map((s) => ({ ticker: s }));
+          parsed.symbols.forEach((s) => {
+            if (typeof s === "string") extractedTickers.push(s);
+          });
+        } else if (Array.isArray(parsed.watchlist)) {
+          // Compatibility with older files: extract ONLY ticker symbols, strictly discard all metrics/metadata
+          parsed.watchlist.forEach((item) => {
+            const sym = item?.ticker || item?.symbol;
+            if (sym && typeof sym === "string") extractedTickers.push(sym);
+          });
         } else {
-          candidates = Object.entries(parsed).map(([k, v]) => {
-            if (typeof v === "object" && v !== null && (v.ticker || v.symbol)) {
-              return {
-                ticker: v.ticker || v.symbol,
-                companyName: v.companyName || v.name || "",
-                addedAt: v.addedAt,
-                metrics: v.metrics || null,
-              };
+          Object.entries(parsed).forEach(([k, v]) => {
+            if (typeof v === "string") extractedTickers.push(v);
+            else if (typeof v === "object" && v !== null && (v.ticker || v.symbol)) {
+              extractedTickers.push(v.ticker || v.symbol);
+            } else if (k && !["app", "version", "exportedAt", "count"].includes(k)) {
+              extractedTickers.push(k);
             }
-            return { ticker: k };
           });
         }
       }
     } catch {
-      // Not JSON, fallback to line-by-line / CSV
+      // Not JSON, fallback to line-by-line / CSV parsing below
     }
   }
 
-  // 2. Fallback to line-by-line / CSV / plain text
-  if (!candidates.length) {
+  // 2. CSV / Plain text parsing if no JSON tickers extracted
+  if (!extractedTickers.length) {
     const lines = trimmed.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
     let tickerColIdx = 0;
-    let companyColIdx = -1;
     let hasHeader = false;
 
     if (lines.length > 0) {
@@ -1625,7 +1586,6 @@ function processWatchlistText(content, filename = "") {
       if (detectedIdx !== -1) {
         hasHeader = true;
         tickerColIdx = detectedIdx;
-        companyColIdx = lowerTokens.findIndex((t) => t === "company" || t === "name" || t === "company_name");
       }
     }
 
@@ -1635,14 +1595,11 @@ function processWatchlistText(content, filename = "") {
       if (line.includes(",") || line.includes("\t") || line.includes(";")) {
         const row = parseCsvLine(line);
         const rawTicker = row[tickerColIdx];
-        const rawCompany = companyColIdx !== -1 ? row[companyColIdx] : "";
-        if (rawTicker) {
-          candidates.push({ ticker: rawTicker, companyName: rawCompany });
-        }
+        if (rawTicker) extractedTickers.push(rawTicker);
       } else {
         const matches = line.match(/[A-Za-z0-9.\-^=]{1,12}/g);
         if (matches) {
-          matches.forEach((m) => candidates.push({ ticker: m }));
+          matches.forEach((m) => extractedTickers.push(m));
         }
       }
     }
@@ -1651,62 +1608,53 @@ function processWatchlistText(content, filename = "") {
   const IGNORE_WORDS = new Set([
     "TICKER", "SYMBOL", "NAME", "COMPANY", "PRICE", "SIGNAL", "DATE",
     "CLOSE", "HIGH", "LOW", "VOLUME", "EXCHANGE", "TYPE", "ACTIONS",
-    "TRUE", "FALSE", "NULL", "UNDEFINED",
+    "TRUE", "FALSE", "NULL", "UNDEFINED", "APP", "VERSION", "EXPORTEDAT", "COUNT",
   ]);
 
   const currentList = getWatchlist();
-  const existingMap = new Map(currentList.map((w) => [w.ticker.toUpperCase(), w]));
+  const existingSet = new Set(currentList.map((w) => w.ticker.toUpperCase()));
   let addedCount = 0;
-  let updatedCount = 0;
   let skippedCount = 0;
 
-  for (const c of candidates) {
-    if (!c || !c.ticker) continue;
-    const cleanTicker = String(c.ticker).trim().replace(/^["']|["']$/g, "").toUpperCase();
+  for (const raw of extractedTickers) {
+    if (!raw || typeof raw !== "string") continue;
+    const cleanTicker = raw.trim().replace(/^["']|["']$/g, "").toUpperCase();
     if (!cleanTicker || cleanTicker.length > 12) continue;
     if (IGNORE_WORDS.has(cleanTicker)) continue;
     if (!/^[A-Z0-9.\-^=]{1,12}$/.test(cleanTicker)) continue;
 
-    if (existingMap.has(cleanTicker)) {
-      const existing = existingMap.get(cleanTicker);
-      if ((!existing.metrics || !existing.metrics.latest_close) && c.metrics && c.metrics.latest_close) {
-        existing.metrics = c.metrics;
-        updatedCount++;
-      } else {
-        skippedCount++;
-      }
-    } else {
-      const newEntry = {
-        ticker: cleanTicker,
-        companyName: (c.companyName || "").trim(),
-        addedAt: c.addedAt && Number(c.addedAt) ? Number(c.addedAt) : Date.now(),
-        metrics: c.metrics || null,
-      };
-      currentList.unshift(newEntry);
-      existingMap.set(cleanTicker, newEntry);
-      addedCount++;
+    if (existingSet.has(cleanTicker)) {
+      skippedCount++;
+      continue;
     }
+
+    // STRICT: Only store ticker symbol. Zero imported metadata, zero cached metrics, zero computed fields.
+    const newEntry = {
+      ticker: cleanTicker,
+      companyName: "",
+      addedAt: Date.now(),
+      metrics: null,
+    };
+    currentList.unshift(newEntry);
+    existingSet.add(cleanTicker);
+    addedCount++;
   }
 
-  if (addedCount > 0 || updatedCount > 0) {
+  if (addedCount > 0) {
     saveWatchlist(currentList);
     renderWatchlistUI();
     updateWatchlistBadge();
     if (currentAnalysis && currentAnalysis.ticker) {
       syncStarBtn(currentAnalysis.ticker);
     }
-    if (addedCount > 0) {
-      showNotification(
-        `\u2705 Restored ${addedCount} ticker${addedCount > 1 ? "s" : ""} to Watchlist${skippedCount > 0 ? ` (${skippedCount} already in list)` : ""}`,
-        "success"
-      );
-    } else {
-      showNotification(`\u2705 Updated data for ${updatedCount} watchlist ticker${updatedCount > 1 ? "s" : ""}`, "success");
-    }
+    showNotification(
+      `\u2705 Imported ${addedCount} ticker symbol${addedCount > 1 ? "s" : ""}${skippedCount > 0 ? ` (${skippedCount} already in list)` : ""}. Click Refresh All to fetch live data.`,
+      "success"
+    );
   } else if (skippedCount > 0) {
     showNotification(`All ${skippedCount} ticker${skippedCount > 1 ? "s are" : " is"} already in your Watchlist`, "info");
   } else {
-    showNotification("No valid tickers found in the selected file", "error");
+    showNotification("No valid ticker symbols found in the selected file", "error");
   }
 }
 

@@ -287,7 +287,11 @@ def get_signal_review(
                 response.headers["X-Response-Time-Ms"] = str(round((time.time() - start_time) * 1000, 2))
             return cached
 
-    review = fetch_signal_review(clean_ticker)
+    try:
+        review = fetch_signal_review(clean_ticker)
+    except DataFetchError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
     cache_manager.set(cache_key, review, ttl_seconds=CacheTier.SIGNAL_REVIEW)
     if response:
         response.headers["X-Cache"] = "MISS"

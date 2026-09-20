@@ -14,6 +14,7 @@ import logging
 from typing import Any
 
 from session_manager import session_manager
+from data_source import DataFetchError
 
 try:
     import yfinance as yf
@@ -96,61 +97,37 @@ def fetch_signal_review(
     without Wall Street analyst coverage.
     """
     clean_ticker = (ticker or "").strip().upper()
-    default_review: dict[str, Any] = {
-        "ticker": clean_ticker,
-        "verdict": "UNRATED",
-        "verdict_display": "UNRATED",
-        "score": None,
-        "scale": "1.0 (Strong Buy) to 5.0 (Strong Sell)",
-        "confidence": "NONE",
-        "analyst_count": 0,
-        "distribution": {
-            "strong_buy": 0,
-            "buy": 0,
-            "hold": 0,
-            "sell": 0,
-            "strong_sell": 0,
-        },
-        "price_targets": {
-            "current": None,
-            "mean": None,
-            "median": None,
-            "high": None,
-            "low": None,
-            "implied_upside_pct": None,
-        },
-        "valuation": {
-            "star_rating": None,
-            "fair_value": None,
-            "status": "Unrated",
-            "discount_pct": None,
-        },
-        "recent_broker_actions": [],
-        "sources": [
-            "LSEG Refinitiv Consensus",
-            "Yahoo Finance Analyst Ratings",
-            "Morningstar / Intrinsic Valuation",
-        ],
-        "summary": f"No institutional analyst coverage currently tracked for {clean_ticker}.",
-    }
-
-    if not clean_ticker or yf is None:
-        return default_review
+    if not clean_ticker:
+        raise DataFetchError("Ticker symbol cannot be empty.")
+    if yf is None:
+        raise DataFetchError("yfinance is not installed on the server.")
 
     t = ticker_obj
     if t is None:
         try:
             t = yf.Ticker(clean_ticker, session=session_manager.get_session())
         except Exception as exc:
-            logger.warning("Could not initialize Ticker for %s: %s", clean_ticker, exc)
-            return default_review
+            raise DataFetchError(f"Could not reach Yahoo Finance for '{clean_ticker}': {exc}") from exc
 
-    # Extract or fallback info dict
+    # Extract or fetch info dict
     if info is None:
         try:
             info = getattr(t, "info", None) or {}
-        except Exception:
-            info = {}
+        except Exception as exc:
+            raise DataFetchError(f"Could not retrieve ticker information for '{clean_ticker}': {exc}") from exc
+
+    # Enforce that the ticker actually exists on Yahoo Finance with real market data
+    has_valid_info = bool(
+        info and (
+            info.get("symbol")
+            or info.get("regularMarketPrice") is not None
+            or info.get("previousClose") is not None
+            or info.get("shortName")
+            or info.get("longName")
+        )
+    )
+    if not has_valid_info:
+        raise DataFetchError(f"No market data or quote found for symbol '{clean_ticker}'. Check that the symbol is correct.")
 
     # 1. Consensus Rating & Score (LSEG Refinitiv)
     rec_mean_raw = info.get("recommendationMean")
