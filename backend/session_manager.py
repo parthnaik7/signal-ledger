@@ -123,6 +123,10 @@ class UnifiedSessionManager:
     def reset_session(self, reason: str = "manual") -> None:
         """Closes the current session and creates a fresh connection pool and cookie jar."""
         with self._session_lock:
+            now = time.time()
+            # Enforce 5-second cooldown debounce on automated reset triggers to prevent thrashing
+            if reason not in ("manual", "scheduled_rotation") and (now - self._created_at < 5.0):
+                return
             self._reset_count += 1
             if self._session is not None:
                 try:

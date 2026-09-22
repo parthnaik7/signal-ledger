@@ -12,8 +12,11 @@ Everything under /  (besides /api/*) serves the static frontend.
 
 from __future__ import annotations
 
+import concurrent.futures
+
 import os
 import time
+import re
 import urllib.parse
 
 import pandas as pd
@@ -28,9 +31,7 @@ from data_source import (
     DataFetchError,
     fetch_from_yahoo,
     fetch_live_quote,
-    fetch_similar_stocks,
     fetch_ticker_metadata_bundle,
-    fetch_ticker_quote_details,
     parse_uploaded_csv,
 )
 from export import build_pdf, build_xlsx
@@ -155,15 +156,17 @@ def _build_response(
     diff_from_ath = latest_close - ath
     diff_from_ath_pct = (diff_from_ath / ath * 100.0) if ath > 0 else 0.0
 
+    has_vol = "Volume" in df.columns
+    vols = df["Volume"] if has_vol else [0.0] * len(df)
     price_history = [
         {
-            "date": row["Date"].isoformat(),
-            "close": float(row["Close"]),
-            "high": float(row["High"]),
-            "low": float(row["Low"]),
-            "volume": float(row["Volume"]) if "Volume" in row and pd.notna(row["Volume"]) else 0.0,
+            "date": d.isoformat(),
+            "close": float(c),
+            "high": float(h),
+            "low": float(l),
+            "volume": float(v) if pd.notna(v) else 0.0,
         }
-        for _, row in df.iterrows()
+        for d, c, h, l, v in zip(df["Date"], df["Close"], df["High"], df["Low"], vols)
     ]
 
     return AnalysisResponse(
@@ -206,7 +209,7 @@ def health():
 
 @app.get("/api/cache/stats")
 @app.get("/api/session/stats")
-def cache_stats():
+def system_stats():
     """Returns telemetry diagnostics from the intelligent cache and persistent session manager."""
     return {
         "cache": cache_manager.get_stats(),
@@ -222,7 +225,7 @@ def cache_clear():
 
 
 @app.get("/api/search")
-def search_ticker(response: Response, q: str = Query("", min_length=1, max_length=20)):
+def search_ticker(response: Response, q: str = Query("", min_length=0, max_length=50)):
     """
     Proxies Yahoo Finance's autocomplete API using persistent connection pooling
     and tiered caching. Fast, sub-millisecond on cache hit.
@@ -355,14 +358,23 @@ def gemini_watchlist_briefing(
         raise HTTPException(status_code=400, detail="Payload must contain a non-empty 'watchlist' array.")
 
     tickers_key = ",".join(sorted([item.get("ticker", "").upper() for item in watchlist_items if item.get("ticker")]))
-    cache_key = f"gemini:watchlist:{hash(tickers_key)}"
+    filters = payload.get("filters")
+    filter_suffix = ""
+    if filters and isinstance(filters, dict):
+        r_part = ",".join(sorted([r.upper() for r in filters.get("risk", []) if r]))
+        c_part = ",".join(sorted([c.upper() for c in filters.get("confidence", []) if c]))
+        rt_part = ",".join(sorted([rt.upper() for rt in filters.get("rating", []) if rt]))
+        if r_part or c_part or rt_part:
+            filter_suffix = f":r={r_part}:c={c_part}:rt={rt_part}"
+
+    cache_key = f"gemini:watchlist:{hash(tickers_key)}{filter_suffix}"
 
     if not refresh:
         cached = cache_manager.get(cache_key)
         if cached is not None:
             return cached
 
-    result = analyze_watchlist_with_gemini(watchlist_items)
+    result = analyze_watchlist_with_gemini(watchlist_items, filters=filters)
     if result.get("success"):
         cache_manager.set(cache_key, result, ttl_seconds=CacheTier.GEMINI)
 
@@ -390,13 +402,14 @@ def analyze(
             return cached_val
 
     fetch_years = max(years, (months // 12) + 2)
-    try:
-        df = fetch_from_yahoo(clean_ticker, years_back=fetch_years)
-    except DataFetchError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
-
-    # Consolidated metadata bundle: single info query for quote details, similar stocks, ATH, ATL, name, signal_review
-    meta = fetch_ticker_metadata_bundle(clean_ticker)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+        future_df = executor.submit(fetch_from_yahoo, clean_ticker, years_back=fetch_years)
+        future_meta = executor.submit(fetch_ticker_metadata_bundle, clean_ticker)
+        try:
+            df = future_df.result()
+        except DataFetchError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        meta = future_meta.result()
 
     result = _build_response(
         df,
@@ -441,8 +454,9 @@ async def analyze_upload(
 
     inferred_ticker = ticker
     if ticker == "UPLOAD" and file.filename:
-        inferred_ticker = file.filename.split("-")[0].split(".")[0]
-    inferred_ticker = inferred_ticker.strip().upper()[:12] or "UPLOAD"
+        base_name = os.path.basename(file.filename)
+        inferred_ticker = base_name.split("-")[0].split(".")[0]
+    inferred_ticker = re.sub(r"[^A-Za-z0-9_\-]", "", inferred_ticker).strip().upper()[:12] or "UPLOAD"
 
     signal_review = fetch_signal_review(inferred_ticker) if inferred_ticker != "UPLOAD" else None
 
@@ -454,6 +468,12 @@ async def analyze_upload(
         months=months,
         signal_review=signal_review,
     )
+
+
+def _sanitize_export_filename(ticker: str, extension: str) -> str:
+    """Sanitizes ticker symbol to prevent HTTP header/CRLF injection and path traversal."""
+    clean = re.sub(r"[^A-Za-z0-9_\-]", "", str(ticker)).strip().upper()[:12] or "STOCK"
+    return f"{clean}_range_ledger.{extension}"
 
 
 def _get_live_quote_safe(ticker: str) -> dict:
@@ -472,7 +492,7 @@ def export_xlsx(payload: dict = Body(...)):
         raise HTTPException(status_code=400, detail="Invalid payload: missing analysis data.")
     live_quote = _get_live_quote_safe(payload.get("ticker", ""))
     content = build_xlsx(payload, live_quote)
-    filename = f"{payload.get('ticker', 'stock')}_range_ledger.xlsx"
+    filename = _sanitize_export_filename(payload.get("ticker", "stock"), "xlsx")
     return Response(
         content=content,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -488,7 +508,7 @@ def export_pdf(payload: dict = Body(...)):
         raise HTTPException(status_code=400, detail="Invalid payload: missing analysis data.")
     live_quote = _get_live_quote_safe(payload.get("ticker", ""))
     content = build_pdf(payload, live_quote)
-    filename = f"{payload.get('ticker', 'stock')}_range_ledger.pdf"
+    filename = _sanitize_export_filename(payload.get("ticker", "stock"), "pdf")
     return Response(
         content=content,
         media_type="application/pdf",

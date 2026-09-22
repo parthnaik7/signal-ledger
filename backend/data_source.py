@@ -95,7 +95,7 @@ def fetch_from_yahoo(ticker: str, years_back: int = 6) -> pd.DataFrame:
             start=start.strftime("%Y-%m-%d"),
             end=end.strftime("%Y-%m-%d"),
             interval="1d",
-            auto_adjust=False,
+            auto_adjust=True,
             progress=False,
             threads=False,
             session=session_manager.get_session(),
@@ -152,6 +152,7 @@ def _coerce_ohlc(df: pd.DataFrame) -> pd.DataFrame:
             out[col] = pd.to_numeric(out[col], errors="coerce")
 
     out = out.dropna(subset=["High", "Low", "Close"])
+    out["Date"] = pd.to_datetime(out["Date"]).dt.tz_localize(None)
     out = out.sort_values("Date").reset_index(drop=True)
 
     if out.empty:
@@ -243,8 +244,14 @@ def fetch_ticker_quote_details(
         div_str = "—"
         if div_rate is not None and div_rate > 0:
             if div_yield is not None:
-                yp = f"{div_yield:.2f}%" if div_yield >= 0.1 else f"{div_yield*100:.2f}%"
-                div_str = f"{div_rate:.2f} ({yp})"
+                # Yahoo Finance dividendYield is typically a decimal ratio (e.g. 0.025 for 2.5%, 0.12 for 12%).
+                # If div_yield < 1.0, scale by 100. If already >= 1.0 (some endpoints report 2.5), use directly.
+                try:
+                    raw_y = float(div_yield)
+                    yp_val = raw_y * 100.0 if raw_y < 1.0 else raw_y
+                    div_str = f"{div_rate:.2f} ({yp_val:.2f}%)"
+                except (ValueError, TypeError):
+                    div_str = f"{div_rate:.2f}"
             else:
                 div_str = f"{div_rate:.2f}"
 

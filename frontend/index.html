@@ -233,13 +233,13 @@
             </div>
           </div>
           <input type="file" id="watchlistFileInput" accept=".json,.csv,.txt" hidden aria-hidden="true">
-          <button type="button" id="watchlistGeminiBtn" class="text-btn gemini-action-trigger" title="Generate Gemini AI Market Sentiment & Daily Focus Briefing">
-            <span class="gemini-sparkle-icon">✨</span> AI Briefing
-          </button>
-          <button type="button" id="refreshAllWatchlistBtn" class="text-btn" title="Refresh all ticker data">Refresh
-            All</button>
-          <button type="button" id="clearWatchlistBtn" class="text-btn danger" title="Clear all watchlist items">Clear
-            All</button>
+          <div class="wl-header-right">
+            <button type="button" id="watchlistGeminiBtn" class="text-btn gemini-action-trigger" title="Generate AI Market Sentiment & Daily Focus Briefing">
+              <span class="gemini-sparkle-icon">✨</span> AI Briefing
+            </button>
+            <button type="button" id="refreshAllWatchlistBtn" class="text-btn" title="Refresh all ticker data">Refresh All</button>
+            <button type="button" id="clearWatchlistBtn" class="text-btn danger" title="Clear all watchlist items">Clear All</button>
+          </div>
           <button type="button" id="closeWatchlistBtn" class="icon-close-btn"
             aria-label="Close watchlist panel">&times;</button>
         </div>
@@ -299,7 +299,7 @@
         </div>
       </div>
 
-      <!-- Gemini Watchlist Market Briefing Card (Collapsible) -->
+      <!-- AI Watchlist Market Briefing Card (Collapsible) -->
       <div class="wl-gemini-briefing-card" id="watchlistGeminiCard" hidden>
         <div class="wl-gemini-header">
           <div class="wl-gemini-title-wrap">
@@ -320,15 +320,25 @@
         <div class="gemini-unconfigured-msg" id="wlGeminiUnconfiguredMsg" hidden>
           <div class="gemini-unconfigured-icon">⚙️</div>
           <div class="gemini-unconfigured-content">
-            <strong>Gemini API Key Required</strong>
-            <p>Set <code>GEMINI_API_KEY</code> in your Render Environment Variables to enable watchlist briefings.</p>
+            <strong>AI API Key Required</strong>
+            <p>Set <code>AI_API_KEY</code> in your Render Environment Variables to enable watchlist briefings.</p>
+          </div>
+        </div>
+
+        <!-- Error state -->
+        <div class="gemini-error-state" id="wlGeminiErrorState" hidden>
+          <div class="gemini-error-icon">⚠️</div>
+          <div class="gemini-error-content">
+            <strong>Briefing Unavailable</strong>
+            <p class="gemini-error-desc" id="wlGeminiErrorDesc">An error occurred while generating the briefing.</p>
+            <button type="button" class="pill-btn pill-btn-gemini" id="wlGeminiRetryBtn" style="margin-top: 8px;">Retry Briefing</button>
           </div>
         </div>
 
         <!-- Loading state -->
         <div class="gemini-loading-state" id="wlGeminiLoadingState" hidden>
           <div class="gemini-shimmer-bar"></div>
-          <span>Analyzing portfolio basket momentum, sector risks &amp; focus trades with Gemini...</span>
+          <span>Analyzing portfolio basket momentum, sector risks &amp; focus trades with AI...</span>
         </div>
 
         <!-- Content state -->
@@ -344,6 +354,83 @@
             <ul class="gemini-bullet-list gemini-risks-list" id="wlGeminiRisksList">
               <!-- Populated via app.js -->
             </ul>
+          </div>
+
+          <!-- Market Opportunities (High-Confidence stocks not in watchlist) -->
+          <div class="wl-gemini-opportunities-box" id="wlGeminiOpportunitiesBox" hidden>
+            <div class="wl-gemini-opp-header">
+              <div class="wl-gemini-opp-header-left">
+                <span class="wl-gemini-opp-title">
+                  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                  Market Opportunities · Not in Your Watchlist
+                </span>
+                <span class="wl-gemini-opp-disclaimer">Informational only · Not investment advice</span>
+              </div>
+              <div class="wl-gemini-opp-header-actions">
+                <button type="button" class="wl-gemini-opp-ctrl-btn" id="wlGeminiOppFilterToggle" title="Filter opportunities" aria-expanded="false" aria-controls="wlGeminiOppFiltersPanel">
+                  <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>
+                  <span>Filters</span>
+                  <span class="wl-opp-filter-badge" id="wlGeminiOppFilterBadge" hidden>0</span>
+                </button>
+                <button type="button" class="wl-gemini-opp-ctrl-btn" id="wlGeminiOppRefreshBtn" title="Refresh market opportunities">
+                  <svg class="wl-opp-refresh-icon" viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                  <span>Refresh</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Collapsible Compact Filters Panel -->
+            <div class="wl-gemini-opp-filters-panel" id="wlGeminiOppFiltersPanel" hidden>
+              <div class="wl-opp-filters-inner">
+                <div class="wl-opp-filter-row">
+                  <span class="wl-opp-filter-label">Risk</span>
+                  <div class="wl-opp-chip-group" data-filter-group="risk">
+                    <button type="button" class="wl-opp-chip" data-value="LOW" aria-pressed="false">Low</button>
+                    <button type="button" class="wl-opp-chip" data-value="MODERATE" aria-pressed="false">Moderate</button>
+                    <button type="button" class="wl-opp-chip" data-value="HIGH" aria-pressed="false">High</button>
+                  </div>
+                </div>
+                <div class="wl-opp-filter-row">
+                  <span class="wl-opp-filter-label">Confidence</span>
+                  <div class="wl-opp-chip-group" data-filter-group="confidence">
+                    <button type="button" class="wl-opp-chip" data-value="HIGH" aria-pressed="false">High</button>
+                    <button type="button" class="wl-opp-chip" data-value="MEDIUM" aria-pressed="false">Medium</button>
+                    <button type="button" class="wl-opp-chip" data-value="LOW" aria-pressed="false">Low</button>
+                  </div>
+                </div>
+                <div class="wl-opp-filter-row">
+                  <span class="wl-opp-filter-label">Rating</span>
+                  <div class="wl-opp-chip-group" data-filter-group="rating">
+                    <button type="button" class="wl-opp-chip" data-value="BUY" aria-pressed="false">Buy</button>
+                    <button type="button" class="wl-opp-chip" data-value="HOLD" aria-pressed="false">Hold</button>
+                    <button type="button" class="wl-opp-chip" data-value="SELL" aria-pressed="false">Sell</button>
+                  </div>
+                </div>
+                <div class="wl-opp-filter-actions">
+                  <button type="button" class="wl-opp-clear-link" id="wlGeminiOppClearFiltersBtn" hidden>Clear filters</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Opportunities loading state -->
+            <div class="wl-gemini-opp-loading" id="wlGeminiOppLoading" hidden>
+              <div class="wl-gemini-opp-spinner"></div>
+              <span>Updating market opportunities...</span>
+            </div>
+
+            <!-- Empty state when 0 matches -->
+            <div class="wl-gemini-opp-empty" id="wlGeminiOppEmpty" hidden>
+              <p class="wl-gemini-opp-empty-msg">No matches for selected filters</p>
+              <div class="wl-gemini-opp-empty-actions">
+                <button type="button" class="wl-gemini-opp-btn-text" id="wlGeminiOppEmptyClearBtn">Clear filters</button>
+                <span class="wl-opp-empty-sep">·</span>
+                <button type="button" class="wl-gemini-opp-btn-text" id="wlGeminiOppEmptyRefreshBtn">Refresh anyway</button>
+              </div>
+            </div>
+
+            <div class="wl-gemini-opp-list" id="wlGeminiOppList">
+              <!-- Populated via app.js -->
+            </div>
           </div>
 
           <div class="gemini-compliance-note">
@@ -820,8 +907,8 @@
         <div class="signal-modal-sources-bar">
           <span class="source-tag">LSEG Refinitiv</span>
           <span class="source-tag">Yahoo Finance Analyst Consensus</span>
-          <span class="source-tag">Morningstar / Fair Value Model</span>
-          <span class="source-tag source-tag-gemini">✨ Gemini AI Research</span>
+          <span class="source-tag">Consensus Valuation Model (PT-based)</span>
+          <span class="source-tag source-tag-gemini">✨ AI Research</span>
         </div>
 
         <div class="signal-modal-body">
@@ -834,15 +921,15 @@
             <p class="signal-summary-text" id="signalSummaryText">Loading institutional consensus...</p>
           </div>
 
-          <!-- Gemini AI Observational Suggestion Module -->
+          <!-- AI Observational Suggestion Module -->
           <div class="signal-section-box signal-gemini-box" id="signalGeminiSection">
             <div class="signal-section-header">
               <div class="gemini-header-left">
                 <span class="gemini-sparkle-icon">✨</span>
-                <span class="signal-section-title">Gemini AI Observational Perspective</span>
+                <span class="signal-section-title">AI Observational Perspective</span>
                 <span class="gemini-pill-tag">AI Opinion · Not Investment Advice</span>
               </div>
-              <button type="button" class="gemini-refresh-btn" id="geminiRefreshBtn" title="Analyze with Gemini AI">
+              <button type="button" class="gemini-refresh-btn" id="geminiRefreshBtn" title="Analyze with AI">
                 <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <polyline points="23 4 23 10 17 10"></polyline>
                   <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
@@ -851,19 +938,60 @@
               </button>
             </div>
 
+            <!-- Empty state (default when idle or no perspective available) -->
+            <div class="gemini-empty-state" id="geminiEmptyState" hidden>
+              <div class="gemini-empty-icon">✨</div>
+              <div class="gemini-empty-content">
+                <span class="gemini-empty-title">AI Research Perspective</span>
+                <p class="gemini-empty-desc" id="geminiEmptyDesc">No perspective generated yet for this asset. Click "Analyze" to synthesize price ranges and consensus.</p>
+                <button type="button" class="gemini-action-btn" id="geminiAnalyzeEmptyBtn">Analyze with AI</button>
+              </div>
+            </div>
+
             <!-- Unconfigured state -->
             <div class="gemini-unconfigured-msg" id="geminiUnconfiguredMsg" hidden>
               <div class="gemini-unconfigured-icon">⚙️</div>
               <div class="gemini-unconfigured-content">
-                <strong>Gemini API Key Required</strong>
-                <p>To enable live AI trade suggestions, configure the <code>GEMINI_API_KEY</code> environment variable in your Render dashboard (Settings &rarr; Environment Variables).</p>
+                <strong>AI API Key Required</strong>
+                <p>To enable live AI trade suggestions, configure the <code>AI_API_KEY</code> environment variable in your Render dashboard (Settings &rarr; Environment Variables).</p>
               </div>
             </div>
 
-            <!-- Loading state -->
+            <!-- Error state -->
+            <div class="gemini-error-state" id="geminiErrorState" hidden>
+              <div class="gemini-error-icon">⚠️</div>
+              <div class="gemini-error-content">
+                <strong>AI Perspective Unavailable</strong>
+                <p class="gemini-error-desc" id="geminiErrorDesc">An error occurred while connecting to AI service.</p>
+                <button type="button" class="pill-btn pill-btn-gemini" id="geminiRetryBtn" style="margin-top: 8px;">Retry Analysis</button>
+              </div>
+            </div>
+
+            <!-- Loading skeleton state -->
             <div class="gemini-loading-state" id="geminiLoadingState" hidden>
-              <div class="gemini-shimmer-bar"></div>
-              <span>Synthesizing ranges, valuation &amp; consensus with Gemini AI...</span>
+              <div class="gemini-skeleton-verdict">
+                <div class="gemini-skeleton-pill"></div>
+                <div class="gemini-skeleton-pill short"></div>
+              </div>
+              <div class="gemini-skeleton-card">
+                <div class="gemini-skeleton-line title"></div>
+                <div class="gemini-skeleton-line"></div>
+                <div class="gemini-skeleton-line short"></div>
+              </div>
+              <div class="gemini-skeleton-grid">
+                <div class="gemini-skeleton-card">
+                  <div class="gemini-skeleton-line title"></div>
+                  <div class="gemini-skeleton-line"></div>
+                </div>
+                <div class="gemini-skeleton-card">
+                  <div class="gemini-skeleton-line title"></div>
+                  <div class="gemini-skeleton-line"></div>
+                </div>
+              </div>
+              <div class="gemini-loading-caption">
+                <div class="gemini-shimmer-bar"></div>
+                <span>Synthesizing ranges, valuation &amp; consensus with AI...</span>
+              </div>
             </div>
 
             <!-- Content state -->
@@ -871,6 +999,7 @@
               <div class="gemini-verdict-row">
                 <div class="gemini-signal-badge-wrap">
                   <span class="gemini-signal-badge signal-neutral" id="geminiSignalBadge">HOLD</span>
+                  <span class="wl-gemini-tag wl-gemini-tag-risk" id="geminiRiskBadge" hidden></span>
                   <span class="gemini-confidence-text" id="geminiConfidenceText">Observational Signal</span>
                 </div>
                 <div class="gemini-posture-box">
@@ -975,10 +1104,10 @@
               </div>
             </div>
 
-            <!-- Morningstar Star Rating & Valuation -->
+            <!-- Analyst Consensus Valuation (star rating vs median PT) -->
             <div class="signal-section-box">
               <div class="signal-section-header">
-                <span class="signal-section-title">Fair Value & Star Rating</span>
+                <span class="signal-section-title">Analyst Consensus Valuation</span>
                 <span class="signal-val-badge" id="signalValStatus">—</span>
               </div>
               <div class="valuation-content">

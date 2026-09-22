@@ -137,13 +137,20 @@ const els = {
   signalDiscountVal: document.getElementById("signalDiscountVal"),
   signalBrokerTbody: document.getElementById("signalBrokerTbody"),
 
-  // Gemini AI Modal Elements
+  // AI Modal Elements
   signalGeminiSection: document.getElementById("signalGeminiSection"),
   geminiRefreshBtn: document.getElementById("geminiRefreshBtn"),
+  geminiEmptyState: document.getElementById("geminiEmptyState"),
+  geminiEmptyDesc: document.getElementById("geminiEmptyDesc"),
+  geminiAnalyzeEmptyBtn: document.getElementById("geminiAnalyzeEmptyBtn"),
   geminiUnconfiguredMsg: document.getElementById("geminiUnconfiguredMsg"),
+  geminiErrorState: document.getElementById("geminiErrorState"),
+  geminiErrorDesc: document.getElementById("geminiErrorDesc"),
+  geminiRetryBtn: document.getElementById("geminiRetryBtn"),
   geminiLoadingState: document.getElementById("geminiLoadingState"),
   geminiContentWrap: document.getElementById("geminiContentWrap"),
   geminiSignalBadge: document.getElementById("geminiSignalBadge"),
+  geminiRiskBadge: document.getElementById("geminiRiskBadge"),
   geminiConfidenceText: document.getElementById("geminiConfidenceText"),
   geminiPostureVal: document.getElementById("geminiPostureVal"),
   geminiTimingText: document.getElementById("geminiTimingText"),
@@ -152,18 +159,32 @@ const els = {
   geminiRisksList: document.getElementById("geminiRisksList"),
   geminiDisclaimerText: document.getElementById("geminiDisclaimerText"),
 
-  // Gemini Watchlist Briefing Elements
+  // AI Watchlist Briefing Elements
   watchlistGeminiBtn: document.getElementById("watchlistGeminiBtn"),
   watchlistGeminiCard: document.getElementById("watchlistGeminiCard"),
   wlGeminiSentimentBadge: document.getElementById("wlGeminiSentimentBadge"),
   wlGeminiRefreshBtn: document.getElementById("wlGeminiRefreshBtn"),
   wlGeminiCloseBtn: document.getElementById("wlGeminiCloseBtn"),
   wlGeminiUnconfiguredMsg: document.getElementById("wlGeminiUnconfiguredMsg"),
+  wlGeminiErrorState: document.getElementById("wlGeminiErrorState"),
+  wlGeminiErrorDesc: document.getElementById("wlGeminiErrorDesc"),
+  wlGeminiRetryBtn: document.getElementById("wlGeminiRetryBtn"),
   wlGeminiLoadingState: document.getElementById("wlGeminiLoadingState"),
   wlGeminiContentWrap: document.getElementById("wlGeminiContentWrap"),
   wlGeminiOverviewText: document.getElementById("wlGeminiOverviewText"),
   wlGeminiFocusGrid: document.getElementById("wlGeminiFocusGrid"),
   wlGeminiRisksList: document.getElementById("wlGeminiRisksList"),
+  wlGeminiOpportunitiesBox: document.getElementById("wlGeminiOpportunitiesBox"),
+  wlGeminiOppList: document.getElementById("wlGeminiOppList"),
+  wlGeminiOppRefreshBtn: document.getElementById("wlGeminiOppRefreshBtn"),
+  wlGeminiOppFilterToggle: document.getElementById("wlGeminiOppFilterToggle"),
+  wlGeminiOppFilterBadge: document.getElementById("wlGeminiOppFilterBadge"),
+  wlGeminiOppFiltersPanel: document.getElementById("wlGeminiOppFiltersPanel"),
+  wlGeminiOppClearFiltersBtn: document.getElementById("wlGeminiOppClearFiltersBtn"),
+  wlGeminiOppLoading: document.getElementById("wlGeminiOppLoading"),
+  wlGeminiOppEmpty: document.getElementById("wlGeminiOppEmpty"),
+  wlGeminiOppEmptyClearBtn: document.getElementById("wlGeminiOppEmptyClearBtn"),
+  wlGeminiOppEmptyRefreshBtn: document.getElementById("wlGeminiOppEmptyRefreshBtn"),
   wlGeminiDisclaimer: document.getElementById("wlGeminiDisclaimer"),
 };
 
@@ -622,15 +643,13 @@ function buildMetricsRow(m, ticker = "") {
   const atlPct  = m.diff_from_all_time_low_pct;
   const athPct  = m.diff_from_all_time_high_pct;
 
-  const lowCls  = lowPct  != null && lowPct  > 0 ? "wl-pill--pos" : "";
-  const highCls = highPct != null && highPct < 0 ? "wl-pill--neg" : "wl-pill--pos";
-  const atlCls  = atlPct  != null && atlPct  > 0 ? "wl-pill--pos" : "";
-  const athCls  = athPct  != null && athPct  < 0 ? "wl-pill--neg" : "wl-pill--pos";
+  const lowCls  = lowPct  != null ? (lowPct  > 0 ? "wl-pill--pos" : "") : "";
+  const highCls = highPct != null ? (highPct < 0 ? "wl-pill--neg" : "wl-pill--pos") : "";
+  const atlCls  = atlPct  != null ? (atlPct  > 0 ? "wl-pill--pos" : "") : "";
+  const athCls  = athPct  != null ? (athPct  < 0 ? "wl-pill--neg" : "wl-pill--pos") : "";
 
+  // Note: Sequence-validated moves only — avoid un-sequenced naive (high - low)/low fallback
   let moveYr = m.best_move_year_pct ?? null;
-  if (moveYr == null && m.latest_low && m.latest_high && m.latest_low > 0) {
-    moveYr = ((m.latest_high - m.latest_low) / m.latest_low) * 100;
-  }
   let moveAll = m.best_move_alltime_pct ?? null;
 
   if (currentAnalysis && ticker && currentAnalysis.ticker === ticker) {
@@ -2590,8 +2609,15 @@ function computeRSI(series, period = 14) {
   }
   let avgGain = gains / period;
   let avgLoss = losses / period;
-  let rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
-  let rsi = avgLoss === 0 ? 100 : 100 - (100 / (1 + rs));
+  let rsi;
+  if (avgGain === 0 && avgLoss === 0) {
+    rsi = 50;
+  } else if (avgLoss === 0) {
+    rsi = 100;
+  } else {
+    const rs = avgGain / avgLoss;
+    rsi = 100 - (100 / (1 + rs));
+  }
   result.push({ x: series[period].date, y: Number(rsi.toFixed(1)) });
 
   for (let i = period + 1; i < series.length; i++) {
@@ -2600,8 +2626,14 @@ function computeRSI(series, period = 14) {
     const loss = change < 0 ? Math.abs(change) : 0;
     avgGain = (avgGain * (period - 1) + gain) / period;
     avgLoss = (avgLoss * (period - 1) + loss) / period;
-    rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
-    rsi = avgLoss === 0 ? 100 : 100 - (100 / (1 + rs));
+    if (avgGain === 0 && avgLoss === 0) {
+      rsi = 50;
+    } else if (avgLoss === 0) {
+      rsi = 100;
+    } else {
+      const rs = avgGain / avgLoss;
+      rsi = 100 - (100 / (1 + rs));
+    }
     result.push({ x: series[i].date, y: Number(rsi.toFixed(1)) });
   }
   return result;
@@ -2632,7 +2664,7 @@ function updateRegimeBadge() {
 }
 
 // ---------------------------------------------------------------------------
-// Unified Signal Review Engine (LSEG Refinitiv, Morningstar & Wall St)
+// Unified Signal Review Engine (LSEG Refinitiv, Analyst Consensus Valuation & Wall St)
 // ---------------------------------------------------------------------------
 function computeStockSignal(data) {
   if (!data) {
@@ -2819,7 +2851,7 @@ function openSignalReviewModal(review, ticker, companyName) {
       }
     }
 
-    // Morningstar Star Rating & Valuation
+    // Analyst Consensus Valuation (star rating vs median analyst PT)
     const ms = r.valuation || r.sources?.morningstar_fair_value || {};
     const stars = ms.star_rating ?? 3;
     const filledStars = "★".repeat(Math.max(0, Math.min(5, stars)));
@@ -2875,7 +2907,7 @@ function openSignalReviewModal(review, ticker, companyName) {
   modal.setAttribute("aria-hidden", "false");
   document.body.classList.add("modal-open");
 
-  // Load Gemini AI Research Suggestion for this ticker
+  // Load AI Research Suggestion for this ticker
   loadGeminiModalSuggestion(safeTicker, safeCompany, r, false);
 }
 
@@ -2888,7 +2920,7 @@ function closeSignalReviewModal() {
 }
 
 // ---------------------------------------------------------------------------
-// Gemini AI Observational Signals & Watchlist Briefing Module
+// AI Observational Signals & Watchlist Briefing Module
 // ---------------------------------------------------------------------------
 const geminiTickerCache = new Map();
 let currentModalGeminiTicker = "";
@@ -2899,15 +2931,29 @@ async function loadGeminiModalSuggestion(ticker, companyName, review, forceRefre
   currentModalGeminiTicker = ticker;
   if (!els.signalGeminiSection) return;
 
+  if (!ticker || ticker === "—") {
+    if (els.geminiLoadingState) els.geminiLoadingState.hidden = true;
+    if (els.geminiContentWrap) els.geminiContentWrap.hidden = true;
+    if (els.geminiUnconfiguredMsg) els.geminiUnconfiguredMsg.hidden = true;
+    if (els.geminiErrorState) els.geminiErrorState.hidden = true;
+    if (els.geminiEmptyState) {
+      els.geminiEmptyState.hidden = false;
+      if (els.geminiEmptyDesc) els.geminiEmptyDesc.textContent = "No stock selected for AI analysis.";
+    }
+    return;
+  }
+
   const cacheKey = ticker.toUpperCase();
   if (!forceRefresh && geminiTickerCache.has(cacheKey)) {
     renderGeminiModalSuggestion(geminiTickerCache.get(cacheKey));
     return;
   }
 
-  // Show loading state
+  // Show loading skeleton immediately (guarantees non-zero height)
   if (els.geminiLoadingState) els.geminiLoadingState.hidden = false;
+  if (els.geminiEmptyState) els.geminiEmptyState.hidden = true;
   if (els.geminiUnconfiguredMsg) els.geminiUnconfiguredMsg.hidden = true;
+  if (els.geminiErrorState) els.geminiErrorState.hidden = true;
   if (els.geminiContentWrap) els.geminiContentWrap.hidden = true;
 
   // Prepare payload from current analysis or watchlist item
@@ -2943,46 +2989,74 @@ async function loadGeminiModalSuggestion(ticker, companyName, review, forceRefre
   }
 
   try {
-    const resp = await fetch(`/api/gemini/ticker-suggestion?refresh=${forceRefresh}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-
-    if (!resp.ok) {
-      throw new Error(`Server error (${resp.status})`);
-    }
-
-    const res = await resp.json();
+    // Use safeFetchJson so the request auto-aborts after 45s (matches server API_TIMEOUT_SECONDS)
+    // and shows a user-friendly error rather than hanging the modal spinner indefinitely.
+    const res = await safeFetchJson(
+      `/api/gemini/ticker-suggestion?refresh=${forceRefresh}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      },
+      45000
+    );
     if (currentModalGeminiTicker !== ticker) return; // stale request check
 
     if (els.geminiLoadingState) els.geminiLoadingState.hidden = true;
 
     if (!res.configured) {
       if (els.geminiUnconfiguredMsg) els.geminiUnconfiguredMsg.hidden = false;
+      if (els.geminiEmptyState) els.geminiEmptyState.hidden = true;
+      if (els.geminiErrorState) els.geminiErrorState.hidden = true;
       if (els.geminiContentWrap) els.geminiContentWrap.hidden = true;
       return;
     }
 
     if (res.success && res.data) {
+      if (els.geminiEmptyState) els.geminiEmptyState.hidden = true;
+      if (els.geminiErrorState) els.geminiErrorState.hidden = true;
       geminiTickerCache.set(cacheKey, res.data);
       renderGeminiModalSuggestion(res.data);
     } else {
-      if (els.geminiContentWrap) els.geminiContentWrap.hidden = false;
-      if (els.geminiTimingText) els.geminiTimingText.textContent = res.error || "Unable to generate AI trade perspective at this time.";
+      if (els.geminiErrorState) {
+        els.geminiErrorState.hidden = false;
+        if (els.geminiErrorDesc) els.geminiErrorDesc.textContent = res.error || "Unable to generate AI trade perspective at this time.";
+      }
+      if (els.geminiEmptyState) els.geminiEmptyState.hidden = true;
+      if (els.geminiContentWrap) els.geminiContentWrap.hidden = true;
     }
   } catch (err) {
     if (currentModalGeminiTicker !== ticker) return;
     if (els.geminiLoadingState) els.geminiLoadingState.hidden = true;
-    if (els.geminiContentWrap) els.geminiContentWrap.hidden = false;
-    if (els.geminiTimingText) els.geminiTimingText.textContent = `Error: ${err.message}`;
+    if (els.geminiErrorState) {
+      els.geminiErrorState.hidden = false;
+      const isTimeout = err.name === "AbortError" || err.message?.includes("aborted") || err.message?.includes("timeout");
+      if (els.geminiErrorDesc) {
+        els.geminiErrorDesc.textContent = isTimeout
+          ? "Request timed out (>45s). The AI service may be busy — try again in a moment."
+          : `Error: ${err.message}`;
+      }
+    }
+    if (els.geminiEmptyState) els.geminiEmptyState.hidden = true;
+    if (els.geminiContentWrap) els.geminiContentWrap.hidden = true;
   }
 }
 
 function renderGeminiModalSuggestion(data) {
-  if (!data) return;
+  if (!data || (typeof data === "object" && Object.keys(data).length === 0)) {
+    if (els.geminiLoadingState) els.geminiLoadingState.hidden = true;
+    if (els.geminiContentWrap) els.geminiContentWrap.hidden = true;
+    if (els.geminiEmptyState) {
+      els.geminiEmptyState.hidden = false;
+      if (els.geminiEmptyDesc) els.geminiEmptyDesc.textContent = "No AI perspective available for this stock.";
+    }
+    return;
+  }
+
   if (els.geminiLoadingState) els.geminiLoadingState.hidden = true;
+  if (els.geminiEmptyState) els.geminiEmptyState.hidden = true;
   if (els.geminiUnconfiguredMsg) els.geminiUnconfiguredMsg.hidden = true;
+  if (els.geminiErrorState) els.geminiErrorState.hidden = true;
   if (els.geminiContentWrap) els.geminiContentWrap.hidden = false;
 
   const sig = (data.signal || "HOLD").toUpperCase();
@@ -2991,8 +3065,16 @@ function renderGeminiModalSuggestion(data) {
     els.geminiSignalBadge.className = `gemini-signal-badge signal-${sig.toLowerCase()}`;
   }
 
+  const risk = (data.risk_level || (sig === "BUY" ? "LOW" : sig === "HOLD" ? "MODERATE" : "HIGH")).toUpperCase();
+  if (els.geminiRiskBadge) {
+    els.geminiRiskBadge.className = `wl-gemini-tag wl-gemini-tag-risk risk-${risk.toLowerCase()}`;
+    els.geminiRiskBadge.innerHTML = `Risk: <strong>${escapeHtml(risk)}</strong>`;
+    els.geminiRiskBadge.hidden = false;
+  }
+
+  const conf = (data.confidence || (sig === "HOLD" ? "MODERATE" : "HIGH")).toUpperCase();
   if (els.geminiConfidenceText) {
-    els.geminiConfidenceText.textContent = `${data.confidence || "Observational"} Confidence`;
+    els.geminiConfidenceText.textContent = `${conf} Confidence`;
   }
 
   if (els.geminiPostureVal) {
@@ -3020,6 +3102,37 @@ function renderGeminiModalSuggestion(data) {
   if (els.geminiDisclaimerText && data.disclaimer) {
     els.geminiDisclaimerText.textContent = data.disclaimer;
   }
+
+  // Synchronize briefing cards and opportunities so both sections always agree
+  if (geminiWatchlistBriefingCache && currentModalGeminiTicker) {
+    const sym = currentModalGeminiTicker.toUpperCase();
+    const derivedRisk = risk;
+    const derivedConf = conf.replace("MODERATE", "MEDIUM");
+
+    let touched = false;
+    if (Array.isArray(geminiWatchlistBriefingCache.focus_trades)) {
+      geminiWatchlistBriefingCache.focus_trades.forEach((t) => {
+        if ((t.ticker || "").toUpperCase() === sym) {
+          t.risk_level = derivedRisk;
+          t.confidence = derivedConf;
+          if (sig) t.rating = sig === "NEUTRAL" ? "WATCH" : sig;
+          touched = true;
+        }
+      });
+    }
+    if (Array.isArray(geminiWatchlistBriefingCache.market_opportunities)) {
+      geminiWatchlistBriefingCache.market_opportunities.forEach((o) => {
+        if ((o.ticker || "").toUpperCase() === sym) {
+          o.risk_level = derivedRisk;
+          o.confidence = derivedConf;
+          touched = true;
+        }
+      });
+    }
+    if (touched && els.watchlistGeminiCard && !els.watchlistGeminiCard.hidden) {
+      renderWatchlistBriefing(geminiWatchlistBriefingCache);
+    }
+  }
 }
 
 // Watchlist Briefing handlers
@@ -3039,6 +3152,235 @@ function toggleWatchlistBriefing() {
   }
 }
 
+
+// ---------------------------------------------------------------------------
+// Market Opportunities Filtering & Refresh State
+// ---------------------------------------------------------------------------
+const SESSION_OPP_FILTERS_KEY = "signalLedger_oppFilters";
+
+function getStoredOppFilters() {
+  try {
+    const raw = sessionStorage.getItem(SESSION_OPP_FILTERS_KEY);
+    if (raw) {
+      const p = JSON.parse(raw);
+      return {
+        risk: Array.isArray(p.risk) ? p.risk : [],
+        confidence: Array.isArray(p.confidence) ? p.confidence : [],
+        rating: Array.isArray(p.rating) ? p.rating : [],
+      };
+    }
+  } catch (_) {}
+  return { risk: [], confidence: [], rating: [] };
+}
+
+function setStoredOppFilters(filters) {
+  try {
+    sessionStorage.setItem(SESSION_OPP_FILTERS_KEY, JSON.stringify(filters));
+  } catch (_) {}
+}
+
+let oppFilters = getStoredOppFilters();
+let allMarketOpportunitiesPool = [];
+let isOppRefreshing = false;
+
+function matchesOppFilters(opp, filters) {
+  if (!opp) return false;
+  const oppRisk = (opp.risk_level || "MODERATE").toUpperCase();
+  const oppConf = (opp.confidence || "MEDIUM").toUpperCase().replace("MODERATE", "MEDIUM");
+  const oppRating = (opp.rating || "BUY").toUpperCase();
+
+  if (filters.risk && filters.risk.length > 0) {
+    if (!filters.risk.includes(oppRisk)) return false;
+  }
+  if (filters.confidence && filters.confidence.length > 0) {
+    if (!filters.confidence.includes(oppConf)) return false;
+  }
+  if (filters.rating && filters.rating.length > 0) {
+    const normalized = oppRating === "WATCH" ? "HOLD" : oppRating;
+    if (!filters.rating.includes(oppRating) && !filters.rating.includes(normalized)) return false;
+  }
+  return true;
+}
+
+function updateOppFilterUIState() {
+  if (els.wlGeminiOppFiltersPanel) {
+    const chips = els.wlGeminiOppFiltersPanel.querySelectorAll(".wl-opp-chip");
+    chips.forEach((chip) => {
+      const group = chip.closest(".wl-opp-chip-group")?.getAttribute("data-filter-group");
+      const val = chip.getAttribute("data-value");
+      const active = group && val && oppFilters[group] && oppFilters[group].includes(val);
+      chip.classList.toggle("is-active", !!active);
+      chip.setAttribute("aria-pressed", active ? "true" : "false");
+    });
+  }
+
+  const activeCount = (oppFilters.risk?.length || 0) + (oppFilters.confidence?.length || 0) + (oppFilters.rating?.length || 0);
+  if (els.wlGeminiOppFilterBadge) {
+    els.wlGeminiOppFilterBadge.textContent = String(activeCount);
+    els.wlGeminiOppFilterBadge.hidden = activeCount === 0;
+  }
+  if (els.wlGeminiOppClearFiltersBtn) {
+    els.wlGeminiOppClearFiltersBtn.hidden = activeCount === 0;
+  }
+  if (els.wlGeminiOppFilterToggle) {
+    els.wlGeminiOppFilterToggle.classList.toggle("is-active", activeCount > 0);
+  }
+}
+
+function renderMarketOpportunitiesList(opps) {
+  if (!els.wlGeminiOpportunitiesBox || !els.wlGeminiOppList) return;
+
+  if (!opps || opps.length === 0) {
+    els.wlGeminiOppList.innerHTML = "";
+    els.wlGeminiOppList.hidden = true;
+    if (els.wlGeminiOppEmpty) els.wlGeminiOppEmpty.hidden = false;
+    return;
+  }
+
+  if (els.wlGeminiOppEmpty) els.wlGeminiOppEmpty.hidden = true;
+  els.wlGeminiOppList.hidden = false;
+
+  els.wlGeminiOppList.innerHTML = opps.map((o) => {
+    const confGrade = (o.confidence || "MEDIUM").toUpperCase().replace("MODERATE", "MEDIUM");
+    const risk = (o.risk_level || "MODERATE").toUpperCase();
+    const rating = (o.rating || "BUY").toUpperCase();
+    const sym = escapeHtml(o.ticker || "—");
+    const rawSym = (o.ticker || "").toUpperCase();
+    const watchlisted = isWatchlisted(rawSym);
+
+    return `
+      <div class="wl-gemini-opp-row">
+        <div class="wl-gemini-opp-left">
+          <button type="button" class="wl-gemini-ticker-link" data-ticker="${rawSym}" title="Analyze ${sym}">${sym}</button>
+          <span class="wl-gemini-tag wl-gemini-tag-rating rating-${rating.toLowerCase()}">${escapeHtml(rating)}</span>
+          <span class="wl-gemini-tag wl-gemini-tag-risk risk-${risk.toLowerCase()}">Risk: <strong>${escapeHtml(risk)}</strong></span>
+          <span class="wl-gemini-tag wl-gemini-tag-conf conf-${confGrade.toLowerCase()}">Conf: <strong>${escapeHtml(confGrade)}</strong></span>
+          <button type="button" class="wl-gemini-opp-star ${watchlisted ? "is-watchlisted" : ""}" data-ticker="${rawSym}" title="${watchlisted ? "Remove from Watchlist" : "Add to Watchlist"}" aria-label="Add ${sym} to Watchlist">
+            <svg class="wl-opp-star-icon" style="fill: ${watchlisted ? "#FBBF24" : "none"}; stroke: ${watchlisted ? "#FBBF24" : "currentColor"};" viewBox="0 0 24 24" width="13" height="13" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+          </button>
+        </div>
+        <p class="wl-gemini-opp-rationale">${escapeHtml(o.rationale || "")}</p>
+      </div>
+    `;
+  }).join("");
+
+  // Attach star listeners
+  els.wlGeminiOppList.querySelectorAll(".wl-gemini-opp-star").forEach((btn) => {
+    const ticker = btn.dataset.ticker;
+    if (!ticker) return;
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (isWatchlisted(ticker)) {
+        removeFromWatchlist(ticker);
+        btn.classList.remove("is-watchlisted");
+        btn.title = `Add ${ticker} to Watchlist`;
+        const icon = btn.querySelector(".wl-opp-star-icon");
+        if (icon) {
+          icon.style.fill = "none";
+          icon.style.stroke = "currentColor";
+        }
+        showNotification(`Removed ${ticker} from Watchlist`, "info");
+      } else {
+        addToWatchlist({
+          ticker: ticker,
+          companyName: ticker,
+          addedAt: new Date().toISOString(),
+          metrics: {},
+        });
+        btn.classList.add("is-watchlisted");
+        btn.title = `Remove ${ticker} from Watchlist`;
+        const icon = btn.querySelector(".wl-opp-star-icon");
+        if (icon) {
+          icon.style.fill = "#FBBF24";
+          icon.style.stroke = "#FBBF24";
+        }
+        showNotification(`Added ${ticker} to Watchlist`, "success");
+      }
+    });
+  });
+
+  // Attach ticker link listeners
+  els.wlGeminiOppList.querySelectorAll(".wl-gemini-ticker-link").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const ticker = btn.dataset.ticker;
+      if (!ticker) return;
+      els.ticker.value = ticker;
+      toggleWatchlistPanel(false);
+      handleFetch();
+    });
+  });
+}
+
+async function fetchFilteredMarketOpportunities(forceRefresh = true) {
+  if (isOppRefreshing) return;
+  isOppRefreshing = true;
+
+  if (els.wlGeminiOppRefreshBtn) {
+    els.wlGeminiOppRefreshBtn.disabled = true;
+    els.wlGeminiOppRefreshBtn.classList.add("is-refreshing");
+  }
+  if (els.wlGeminiOppLoading) els.wlGeminiOppLoading.hidden = false;
+  if (els.wlGeminiOppEmpty) els.wlGeminiOppEmpty.hidden = true;
+  if (els.wlGeminiOppList) els.wlGeminiOppList.hidden = true;
+
+  try {
+    const list = getWatchlist();
+    if (!list.length) {
+      if (els.wlGeminiOppLoading) els.wlGeminiOppLoading.hidden = true;
+      return;
+    }
+
+    const resp = await fetch(`/api/gemini/watchlist-briefing?refresh=${forceRefresh}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ watchlist: list, filters: oppFilters }),
+    });
+
+    if (resp.ok) {
+      const res = await resp.json();
+      if (res.success && res.data && Array.isArray(res.data.market_opportunities)) {
+        const newOpps = res.data.market_opportunities;
+        const existingMap = new Map();
+        allMarketOpportunitiesPool.forEach((o) => {
+          const k = (o.ticker || "").toUpperCase();
+          if (k) existingMap.set(k, o);
+        });
+        newOpps.forEach((o) => {
+          const k = (o.ticker || "").toUpperCase();
+          if (k) existingMap.set(k, o);
+        });
+        allMarketOpportunitiesPool = Array.from(existingMap.values());
+
+        if (geminiWatchlistBriefingCache) {
+          geminiWatchlistBriefingCache.market_opportunities = newOpps;
+        }
+
+        const filtered = allMarketOpportunitiesPool.filter((o) => matchesOppFilters(o, oppFilters));
+        renderMarketOpportunitiesList(filtered);
+      } else {
+        const filtered = allMarketOpportunitiesPool.filter((o) => matchesOppFilters(o, oppFilters));
+        renderMarketOpportunitiesList(filtered);
+      }
+    } else {
+      const filtered = allMarketOpportunitiesPool.filter((o) => matchesOppFilters(o, oppFilters));
+      renderMarketOpportunitiesList(filtered);
+    }
+  } catch (err) {
+    console.error("Failed to fetch filtered opportunities:", err);
+    const filtered = allMarketOpportunitiesPool.filter((o) => matchesOppFilters(o, oppFilters));
+    renderMarketOpportunitiesList(filtered);
+  } finally {
+    if (els.wlGeminiOppLoading) els.wlGeminiOppLoading.hidden = true;
+    setTimeout(() => {
+      isOppRefreshing = false;
+      if (els.wlGeminiOppRefreshBtn) {
+        els.wlGeminiOppRefreshBtn.disabled = false;
+        els.wlGeminiOppRefreshBtn.classList.remove("is-refreshing");
+      }
+    }, 1500);
+  }
+}
+
 async function fetchWatchlistBriefing(forceRefresh = false) {
   const list = getWatchlist();
   if (!list.length) {
@@ -3049,13 +3391,14 @@ async function fetchWatchlistBriefing(forceRefresh = false) {
 
   if (els.wlGeminiLoadingState) els.wlGeminiLoadingState.hidden = false;
   if (els.wlGeminiUnconfiguredMsg) els.wlGeminiUnconfiguredMsg.hidden = true;
+  if (els.wlGeminiErrorState) els.wlGeminiErrorState.hidden = true;
   if (els.wlGeminiContentWrap) els.wlGeminiContentWrap.hidden = true;
 
   try {
     const resp = await fetch(`/api/gemini/watchlist-briefing?refresh=${forceRefresh}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ watchlist: list }),
+      body: JSON.stringify({ watchlist: list, filters: oppFilters }),
     });
 
     if (!resp.ok) {
@@ -3067,29 +3410,78 @@ async function fetchWatchlistBriefing(forceRefresh = false) {
 
     if (!res.configured) {
       if (els.wlGeminiUnconfiguredMsg) els.wlGeminiUnconfiguredMsg.hidden = false;
+      if (els.wlGeminiErrorState) els.wlGeminiErrorState.hidden = true;
       if (els.wlGeminiContentWrap) els.wlGeminiContentWrap.hidden = true;
       return;
     }
 
     if (res.success && res.data) {
+      if (els.wlGeminiErrorState) els.wlGeminiErrorState.hidden = true;
       geminiWatchlistBriefingCache = res.data;
       geminiWatchlistBriefingCacheTime = Date.now();
       renderWatchlistBriefing(res.data);
     } else {
-      if (els.wlGeminiContentWrap) els.wlGeminiContentWrap.hidden = false;
-      if (els.wlGeminiOverviewText) els.wlGeminiOverviewText.textContent = res.error || "Briefing could not be generated.";
+      if (els.wlGeminiErrorState) {
+        els.wlGeminiErrorState.hidden = false;
+        if (els.wlGeminiErrorDesc) els.wlGeminiErrorDesc.textContent = res.error || "Briefing could not be generated.";
+      }
+      if (els.wlGeminiContentWrap) els.wlGeminiContentWrap.hidden = true;
     }
   } catch (err) {
     if (els.wlGeminiLoadingState) els.wlGeminiLoadingState.hidden = true;
-    if (els.wlGeminiContentWrap) els.wlGeminiContentWrap.hidden = false;
-    if (els.wlGeminiOverviewText) els.wlGeminiOverviewText.textContent = `Error: ${err.message}`;
+    if (els.wlGeminiErrorState) {
+      els.wlGeminiErrorState.hidden = false;
+      if (els.wlGeminiErrorDesc) els.wlGeminiErrorDesc.textContent = `Error: ${err.message}`;
+    }
+    if (els.wlGeminiContentWrap) els.wlGeminiContentWrap.hidden = true;
   }
 }
 
 function renderWatchlistBriefing(data) {
   if (!data) return;
+
+  // Harmonize briefing focus trades and opportunities with any already-cached modal suggestions
+  if (data && typeof geminiTickerCache !== "undefined") {
+    if (Array.isArray(data.focus_trades)) {
+      data.focus_trades.forEach((t) => {
+        const sym = (t.ticker || "").toUpperCase();
+        if (geminiTickerCache.has(sym)) {
+          const c = geminiTickerCache.get(sym);
+          const cSig = (c.signal || "").toUpperCase();
+          const cRisk = (c.risk_level || (cSig === "BUY" ? "LOW" : cSig === "HOLD" ? "MODERATE" : "HIGH")).toUpperCase();
+          const cConf = (c.confidence || "MEDIUM").toUpperCase().replace("MODERATE", "MEDIUM");
+          if (cSig in { HOLD: 1, NEUTRAL: 1 }) {
+            t.rating = cSig === "HOLD" ? "HOLD" : "WATCH";
+            t.risk_level = cRisk;
+            t.confidence = cConf === "LOW" ? "LOW" : "MEDIUM";
+          } else if (cRisk) {
+            t.risk_level = cRisk;
+          }
+        }
+      });
+    }
+    if (Array.isArray(data.market_opportunities)) {
+      data.market_opportunities.forEach((o) => {
+        const sym = (o.ticker || "").toUpperCase();
+        if (geminiTickerCache.has(sym)) {
+          const c = geminiTickerCache.get(sym);
+          const cSig = (c.signal || "").toUpperCase();
+          const cRisk = (c.risk_level || (cSig === "BUY" ? "LOW" : cSig === "HOLD" ? "MODERATE" : "HIGH")).toUpperCase();
+          const cConf = (c.confidence || "MEDIUM").toUpperCase().replace("MODERATE", "MEDIUM");
+          if (cSig in { HOLD: 1, NEUTRAL: 1 }) {
+            o.risk_level = cRisk;
+            o.confidence = cConf === "LOW" ? "LOW" : "MEDIUM";
+          } else if (cRisk) {
+            o.risk_level = cRisk;
+          }
+        }
+      });
+    }
+  }
+
   if (els.wlGeminiLoadingState) els.wlGeminiLoadingState.hidden = true;
   if (els.wlGeminiUnconfiguredMsg) els.wlGeminiUnconfiguredMsg.hidden = true;
+  if (els.wlGeminiErrorState) els.wlGeminiErrorState.hidden = true;
   if (els.wlGeminiContentWrap) els.wlGeminiContentWrap.hidden = false;
 
   const sentiment = (data.overall_sentiment || "NEUTRAL").toUpperCase();
@@ -3109,17 +3501,42 @@ function renderWatchlistBriefing(data) {
     } else {
       els.wlGeminiFocusGrid.innerHTML = trades.map((t) => {
         const rating = (t.rating || "WATCH").toUpperCase();
+        const risk = (t.risk_level || "MODERATE").toUpperCase();
+
+        // Calculate confidence grade and certainty percentage
+        let confGrade = (t.confidence || t.confidence_level || "").toUpperCase();
+        const rawScore = t.confidence_score;
+        let pct = null;
+        if (typeof rawScore === "number" && !isNaN(rawScore)) {
+          pct = Math.round(rawScore <= 1 ? rawScore * 100 : rawScore);
+        }
+        if (!confGrade) {
+          if (pct !== null) {
+            confGrade = pct >= 75 ? "HIGH" : pct >= 50 ? "MEDIUM" : "LOW";
+          } else {
+            confGrade = "MEDIUM";
+          }
+        } else if (confGrade === "MODERATE") {
+          confGrade = "MEDIUM";
+        }
+        if (pct === null) {
+          pct = confGrade === "HIGH" ? 85 : confGrade === "LOW" ? 40 : 65;
+        }
+
         return `
           <div class="wl-gemini-focus-card">
             <div class="wl-gemini-focus-header">
-              <span class="wl-gemini-focus-ticker">${escapeHtml(t.ticker || "—")}</span>
+              <button type="button" class="wl-gemini-ticker-link" data-ticker="${escapeHtml(t.ticker || '')}" title="Analyze ${escapeHtml(t.ticker || '')}">${escapeHtml(t.ticker || "—")}</button>
               <span class="wl-gemini-focus-rating rating-${rating.toLowerCase()}">${escapeHtml(rating)}</span>
             </div>
             <span class="wl-gemini-focus-setup">${escapeHtml(t.setup_type || "Setup Observation")}</span>
             <p class="wl-gemini-focus-rationale">${escapeHtml(t.rationale || "")}</p>
             <div class="wl-gemini-focus-footer">
-              <span>⏱ ${escapeHtml(t.timing_note || "Observational")}</span>
-              <span>Risk: <strong>${escapeHtml(t.risk_level || "MODERATE")}</strong></span>
+              <span class="wl-gemini-focus-timing">⏱ ${escapeHtml(t.timing_note || "Observational")}</span>
+              <div class="wl-gemini-focus-tags">
+                <span class="wl-gemini-tag wl-gemini-tag-risk risk-${risk.toLowerCase()}">Risk: <strong>${escapeHtml(risk)}</strong></span>
+                <span class="wl-gemini-tag wl-gemini-tag-conf conf-${confGrade.toLowerCase()}" title="Certainty Score: ${pct}%">Conf: <strong>${escapeHtml(confGrade)} (${pct}%)</strong></span>
+              </div>
             </div>
           </div>
         `;
@@ -3132,8 +3549,88 @@ function renderWatchlistBriefing(data) {
     els.wlGeminiRisksList.innerHTML = risks.map((r) => `<li>${escapeHtml(r)}</li>`).join("");
   }
 
+  // Render market opportunities (high-confidence stocks not in watchlist)
+  const opps = Array.isArray(data.market_opportunities) ? data.market_opportunities : [];
+  if (els.wlGeminiOpportunitiesBox) {
+    if (opps.length === 0 && allMarketOpportunitiesPool.length === 0) {
+      els.wlGeminiOpportunitiesBox.hidden = true;
+    } else {
+      els.wlGeminiOpportunitiesBox.hidden = false;
+      const existingMap = new Map();
+      allMarketOpportunitiesPool.forEach((o) => {
+        const k = (o.ticker || "").toUpperCase();
+        if (k) existingMap.set(k, o);
+      });
+      opps.forEach((o) => {
+        const k = (o.ticker || "").toUpperCase();
+        if (k) existingMap.set(k, o);
+      });
+      allMarketOpportunitiesPool = Array.from(existingMap.values());
+
+      updateOppFilterUIState();
+
+      const activeCount = (oppFilters.risk?.length || 0) + (oppFilters.confidence?.length || 0) + (oppFilters.rating?.length || 0);
+      const filtered = allMarketOpportunitiesPool.filter((o) => matchesOppFilters(o, oppFilters));
+
+      if (filtered.length < 3 && activeCount > 0) {
+        fetchFilteredMarketOpportunities(false);
+      } else {
+        renderMarketOpportunitiesList(filtered);
+      }
+    }
+  }
+
   if (els.wlGeminiDisclaimer && data.disclaimer) {
     els.wlGeminiDisclaimer.textContent = data.disclaimer;
+  }
+
+  // Wire up ticker-link clicks (both focus trades and opportunities)
+  const briefingCard = document.getElementById("watchlistGeminiCard");
+  if (briefingCard) {
+    briefingCard.querySelectorAll(".wl-gemini-ticker-link").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const ticker = btn.dataset.ticker;
+        if (!ticker) return;
+        els.ticker.value = ticker;
+        toggleWatchlistPanel(false);
+        handleFetch();
+      });
+    });
+
+    // Wire up opportunity star buttons
+    briefingCard.querySelectorAll(".wl-gemini-opp-star").forEach((btn) => {
+      const ticker = btn.dataset.ticker;
+      if (!ticker) return;
+      // Set initial state
+      if (isWatchlisted(ticker)) {
+        btn.classList.add("is-watchlisted");
+        btn.title = `Remove ${ticker} from Watchlist`;
+        btn.querySelector(".wl-opp-star-icon").style.fill = "#FBBF24";
+        btn.querySelector(".wl-opp-star-icon").style.stroke = "#FBBF24";
+      }
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (isWatchlisted(ticker)) {
+          removeFromWatchlist(ticker);
+          btn.classList.remove("is-watchlisted");
+          btn.title = `Add ${ticker} to Watchlist`;
+          btn.querySelector(".wl-opp-star-icon").style.fill = "none";
+          btn.querySelector(".wl-opp-star-icon").style.stroke = "currentColor";
+          showNotification(`Removed ${ticker} from Watchlist`, "info");
+        } else {
+          addToWatchlist(ticker, ticker, null);
+          btn.classList.add("is-watchlisted");
+          btn.title = `Remove ${ticker} from Watchlist`;
+          btn.querySelector(".wl-opp-star-icon").style.fill = "#FBBF24";
+          btn.querySelector(".wl-opp-star-icon").style.stroke = "#FBBF24";
+          showNotification(`⭐ ${ticker} added to Watchlist`, "success");
+        }
+        btn.classList.remove("pop");
+        void btn.offsetWidth;
+        btn.classList.add("pop");
+        btn.addEventListener("animationend", () => btn.classList.remove("pop"), { once: true });
+      });
+    });
   }
 }
 
@@ -3893,7 +4390,7 @@ if (els.signalReviewModal) {
   });
 }
 
-// Gemini AI Action Listeners
+// AI Action Listeners
 if (els.geminiRefreshBtn) {
   els.geminiRefreshBtn.addEventListener("click", (e) => {
     e.preventDefault();
@@ -3918,12 +4415,116 @@ if (els.wlGeminiRefreshBtn) {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Market Opportunities Event Listeners
+// ---------------------------------------------------------------------------
+if (els.wlGeminiOppFilterToggle && els.wlGeminiOppFiltersPanel) {
+  els.wlGeminiOppFilterToggle.addEventListener("click", (e) => {
+    e.preventDefault();
+    const isHidden = els.wlGeminiOppFiltersPanel.hidden;
+    els.wlGeminiOppFiltersPanel.hidden = !isHidden;
+    els.wlGeminiOppFilterToggle.setAttribute("aria-expanded", isHidden ? "true" : "false");
+  });
+}
+
+if (els.wlGeminiOppFiltersPanel) {
+  els.wlGeminiOppFiltersPanel.querySelectorAll(".wl-opp-chip").forEach((chip) => {
+    chip.addEventListener("click", (e) => {
+      e.preventDefault();
+      const group = chip.closest(".wl-opp-chip-group")?.getAttribute("data-filter-group");
+      const val = chip.getAttribute("data-value");
+      if (!group || !val) return;
+
+      if (!oppFilters[group]) oppFilters[group] = [];
+      const idx = oppFilters[group].indexOf(val);
+      if (idx > -1) {
+        oppFilters[group].splice(idx, 1);
+      } else {
+        oppFilters[group].push(val);
+      }
+
+      setStoredOppFilters(oppFilters);
+      updateOppFilterUIState();
+
+      const activeCount = (oppFilters.risk?.length || 0) + (oppFilters.confidence?.length || 0) + (oppFilters.rating?.length || 0);
+      const filtered = allMarketOpportunitiesPool.filter((o) => matchesOppFilters(o, oppFilters));
+
+      if (filtered.length >= 3 || (activeCount === 0 && allMarketOpportunitiesPool.length > 0)) {
+        renderMarketOpportunitiesList(filtered);
+      } else {
+        fetchFilteredMarketOpportunities(false);
+      }
+    });
+  });
+}
+
+function handleClearOppFilters() {
+  oppFilters = { risk: [], confidence: [], rating: [] };
+  setStoredOppFilters(oppFilters);
+  updateOppFilterUIState();
+  renderMarketOpportunitiesList(allMarketOpportunitiesPool);
+}
+
+if (els.wlGeminiOppClearFiltersBtn) {
+  els.wlGeminiOppClearFiltersBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    handleClearOppFilters();
+  });
+}
+
+if (els.wlGeminiOppEmptyClearBtn) {
+  els.wlGeminiOppEmptyClearBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    handleClearOppFilters();
+  });
+}
+
+if (els.wlGeminiOppRefreshBtn) {
+  els.wlGeminiOppRefreshBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    fetchFilteredMarketOpportunities(true);
+  });
+}
+
+if (els.wlGeminiOppEmptyRefreshBtn) {
+  els.wlGeminiOppEmptyRefreshBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    fetchFilteredMarketOpportunities(true);
+  });
+}
+
+
 if (els.wlGeminiCloseBtn) {
   els.wlGeminiCloseBtn.addEventListener("click", (e) => {
     e.preventDefault();
     if (els.watchlistGeminiCard) {
       els.watchlistGeminiCard.hidden = true;
     }
+  });
+}
+
+if (els.geminiRetryBtn) {
+  els.geminiRetryBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    if (currentModalGeminiTicker) {
+      loadGeminiModalSuggestion(currentModalGeminiTicker, "", null, true);
+    }
+  });
+}
+
+if (els.geminiAnalyzeEmptyBtn) {
+  els.geminiAnalyzeEmptyBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    if (currentModalGeminiTicker) {
+      loadGeminiModalSuggestion(currentModalGeminiTicker, "", null, true);
+    }
+  });
+}
+
+if (els.wlGeminiRetryBtn) {
+  els.wlGeminiRetryBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    fetchWatchlistBriefing(true);
   });
 }
 

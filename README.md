@@ -1,72 +1,159 @@
-# SignalLedger
+# SignalLedger — Sequential Range Intelligence & Trade Signals
 
-A high-precision equity analysis platform that turns daily stock history into sequence-aware ranges and actionable trade signals:
+SignalLedger is a quantitative equity research terminal that turns raw daily price history and Wall Street institutional data into sequence-validated range ledgers, multi-timeframe technical indicators, and deterministic trade signals grounded in real analyst consensus — not AI guesses.
 
-1. **Yearly ranges** — high, low, the dates they happened, and the % difference between them — with a flag for years where the low happened *after* the high (meaning the raw % diff overstates an "achievable" rally), plus a corrected % diff using the following year's actual high.
-2. **Trailing monthly ranges** — same idea, month by month, over however many months you ask for.
-3. **Best sequential move** — the largest gain you could actually have captured by buying at a low and selling at a *later* high, computed properly in chronological order.
+---
 
-Data can come from **live Yahoo Finance** (the same data backing `finance.yahoo.com/quote/{TICKER}/history`) or from an **uploaded CSV** exported from that same Yahoo history page — both paths produce identical tables.
+## Key Features
 
-## Project layout
+### 1. Sequence-Validated Yearly & Monthly Ledgers
+- Computes calendar year and trailing monthly price ranges with exact High/Low dates.
+- **Sequencing Flag (`⚑`)**: Detects decline years where the annual Low occurred *after* the High. Automatically computes a corrected recovery metric using the subsequent year's high against the flagged low — preventing naive % differences from misrepresenting achievable gains.
+- **Best Sequential Move**: Scans history chronologically to identify the single largest capturable low→high rally in both the current year and full asset history.
+
+### 2. Deterministic Unified Signal Engine
+All BUY/HOLD/SELL signals and confidence levels are derived from a **single, transparent mathematical formula** — not independently generated AI guesses. Four real data pillars are weighted and composited:
+
+| Pillar | Weight | Source |
+|---|---|---|
+| Wall Street Consensus Score (LSEG Refinitiv 1.0–5.0) | 35% | Yahoo Finance / LSEG |
+| Analyst Opinion Distribution (Strong Buy / Buy / Hold / Sell counts) | 15% | Yahoo Finance |
+| Price Target Implied Upside (Mean PT vs. current price) | 30% | Yahoo Finance Analyst PTs |
+| Analyst Consensus Valuation Model (star rating vs. median PT) | 20% | Yahoo Finance Analyst PTs |
+
+The composite score $S \in [-2, +2]$ maps to: **BUY** ($S \geq +0.50$), **HOLD** ($-0.50 < S < +0.50$), **SELL** ($S \leq -0.50$). An extension guardrail locks to HOLD when price is within ~6% of its 52-week high with <8% implied target upside.
+
+Confidence and risk levels are computed from inter-source agreement (standard deviation across pillars), analyst coverage depth, and proximity to 52-week highs — not heuristics.
+
+### 3. Watchlist & Portfolio Dispersion Screening
+- Client-persisted watchlist with multi-column sorting: Proximity to 52W Low, 52W High, All-Time Low, All-Time High, Best Move.
+- **AI Watchlist Briefing**: Gemini-powered executive market sentiment overview, macro risk alerts, and focus trade ideas. All signals in the briefing are reconciled against the deterministic unified engine — the AI generates narrative context, never the rating.
+- **Market Opportunities** (Not In Your Watchlist): AI suggests external candidates; filters by Risk / Confidence / Rating with live refresh.
+
+### 4. Technical Indicator Engine (Client-Side, Real-Time)
+- Moving Average Overlays: **20-EMA**, **50-SMA**, **200-SMA** with series warm-up.
+- **Volume Histogram**: Visualizes institutional accumulation vs. distribution.
+- **RSI (14-period)**: Momentum oscillator with Overbought (70) / Oversold (30) bands.
+- **Market Regime**: Real-time Bullish/Bearish posture against institutional moving averages.
+
+### 5. Institutional Export Engine
+- **Excel (`.xlsx`)**: Multi-tab workbook with styled yearly ledger, monthly table, best moves, and full daily price history.
+- **PDF**: Publication-ready report with flagged sequence rows and real-time quote snapshot.
+
+---
+
+## Architecture
 
 ```
-stock-analyzer/
+signal-ledger/
 ├── backend/
-│   ├── main.py          FastAPI app + routes, also serves the frontend
-│   ├── analysis.py       yearly/monthly/sequential-move computation (pure functions, unit-testable)
-│   ├── data_source.py    Yahoo Finance fetch (yfinance) + CSV upload parsing
-│   └── requirements.txt
-└── frontend/
-    ├── index.html
-    ├── style.css
-    └── app.js            vanilla JS — no build step needed
+│   ├── main.py              # FastAPI endpoints, CORS, concurrent data fetching
+│   ├── analysis.py          # Yearly/monthly ledgers, sequential max-gain algorithm
+│   ├── data_source.py       # Yahoo Finance (yfinance, auto-adjusted OHLCV), 16 quote stats, CSV parsing
+│   ├── signal_review.py     # Unified signal engine: LSEG consensus + valuation + compute_unified_rating()
+│   ├── gemini_service.py    # Gemini AI narrative (signals hardlocked to unified engine output)
+│   ├── cache_manager.py     # Tiered in-memory TTL cache (LRU, 500 entry cap, telemetry)
+│   ├── session_manager.py   # Persistent connection pool, curl_cffi Chrome TLS impersonation
+│   ├── export.py            # XLSX (openpyxl) and PDF (reportlab) generators
+│   ├── requirements.txt     # Python dependencies
+│   └── tests/               # 37 unit & regression tests
+├── frontend/
+│   ├── index.html           # Main terminal dashboard
+│   ├── app.js               # App logic, technical indicators, watchlist, safeFetchJson with AbortController
+│   ├── style.css            # Design system (dark & light themes, CSS custom properties)
+│   ├── insights.html        # Financial methodology & operational guide
+│   ├── terms.html           # Terms of service & disclaimers
+│   └── privacy.html         # Privacy policy & local storage disclosure
+├── render.yaml              # Render cloud deployment blueprint
+└── README.md
 ```
 
-## Running it
+---
+
+## Getting Started
+
+### Prerequisites
+- Python 3.10+
+- Modern web browser (Chrome, Firefox, Safari, Edge)
+
+### Installation
 
 ```bash
-cd backend
-pip install -r requirements.txt
-uvicorn main:app --reload --port 8000
+git clone https://github.com/parthnaik7/signal-ledger.git
+cd signal-ledger
+
+python3 -m venv venv3
+source venv3/bin/activate      # Windows: venv3\Scripts\activate
+
+pip install -r backend/requirements.txt
 ```
 
-Then open **http://localhost:8000** — the backend serves the frontend directly, so there's nothing else to start.
+### Running Locally
 
-## Using it
+```bash
+uvicorn backend.main:app --reload --port 8000
+```
 
-- Type a ticker (e.g. `PLTR`, `IREN`, `MARA`), set **Years** and **Trailing months**, and click **Fetch from Yahoo**.
-- If live fetching is blocked (corporate network, rate limiting, or a sandboxed environment with no outbound internet — Yahoo Finance access needs to be reachable from wherever this server runs), click **Upload CSV** instead and pick a Yahoo-exported history CSV. Both paths render the same dashboard.
-- The yearly chart has a **log scale** toggle — useful for tickers whose price has moved by orders of magnitude (e.g. penny stocks or early-stage names).
+Open **http://127.0.0.1:8000**. The backend serves the static frontend directly — no Node.js or build step required.
 
-## Notes on the data and logic
+### Environment Variables
 
-- **"Complete" years/months** are flagged in the table (`partial` tag) when the window is clipped at the start or end of the data — e.g. the current year-to-date, or a ticker's first partial year after its IPO.
-- **The sequencing flag** (`⚑` styling, coral left border) fires whenever a year's low date comes after its high date. In that case the year's own % diff describes a *decline*, not a rally, so a revised figure is shown using next year's actual high against this year's low — a real, chronologically valid recovery number. If there's no next-year data yet (e.g. current YTD), it's marked "no data to revise against."
-- **Live Yahoo fetching** uses the `yfinance` library, which talks to the same backend Yahoo's own history page uses. This requires outbound internet access to Yahoo's `query1`/`query2.finance.yahoo.com` from the server process — some restricted or sandboxed hosting environments block this, which is what the CSV upload path is for.
-- All computation lives in `analysis.py` as plain functions over a pandas DataFrame, independent of where the data came from, so it's straightforward to unit test or reuse elsewhere.
+| Variable | Default | Description |
+|---|---|---|
+| `GEMINI_API_KEY` | *(optional)* | Google Generative Language API key. Activates AI Market Briefings and single-ticker research narratives. All signals remain deterministic regardless. |
+| `GEMINI_MODEL` | `gemini-2.5-flash` | Gemini model. Cascades through `gemini-3.6-flash` → `gemini-flash-latest` on failure. |
+| `ALLOWED_ORIGINS` | `*` | Comma-separated CORS origins for external API access. |
 
-## Price history chart
+---
 
-Below the ticker header, a full daily-close line chart covers the entire loaded range, with **1M / 3M / 6M / 1Y / 2Y / 5Y / Max** buttons to zoom — these filter the already-loaded data client-side, so switching ranges is instant and doesn't re-fetch or re-hit the server. The full daily series is also included in the XLSX export as a "Daily Prices" sheet.
+## API Reference
 
-## Exporting
+| Endpoint | Method | Description |
+|---|---|---|
+| `/api/analyze` | GET | Live Yahoo Finance fetch + sequence-validated range analysis. Params: `ticker`, `years` (1–15), `months` (1–60), `refresh`. |
+| `/api/analyze/upload` | POST | Same analysis from an uploaded Yahoo-format history CSV (multipart). |
+| `/api/search` | GET | Autocomplete ticker search via Yahoo Finance with tiered caching. Param: `q`. |
+| `/api/signal-review` | GET | LSEG Refinitiv consensus, broker upgrades/downgrades, and unified deterministic rating. Params: `ticker`, `refresh`. |
+| `/api/gemini/status` | GET | Gemini API configuration state and active model. |
+| `/api/gemini/ticker-suggestion` | POST | AI observational research perspective for a single ticker (signal hardlocked to unified engine). |
+| `/api/gemini/watchlist-briefing` | POST | Portfolio sentiment briefing, macro risks, focus trades, and market opportunities (with filter support). Param: `refresh`. |
+| `/api/export/xlsx` | POST | Styled Excel workbook from analysis payload. |
+| `/api/export/pdf` | POST | Publication-ready PDF from analysis payload. |
+| `/api/cache/stats` | GET | Real-time telemetry: cache hit rate, entries, session pool stats. Also available at `/api/session/stats`. |
+| `/api/cache/clear` | POST | Invalidates all in-memory cached responses. |
+| `/api/health` | GET | Liveness check. |
 
-Once a ticker is loaded, **Download XLSX** and **Download PDF** appear next to the summary figures. Both:
+---
 
-- Re-use whatever is currently on screen (same years/months window, same yearly/monthly/best-move tables), so what you export matches what you see.
-- Attempt a fresh **live price snapshot** at export time (via `yfinance`'s quote endpoint, separate from the historical daily close) and stamp the report with **when it was generated** (server's current date/time). If a live quote isn't reachable (no internet to Yahoo, market data gap, etc.), the export still succeeds — it just labels that line "unavailable" instead of guessing.
-- The XLSX has four sheets: Summary, Yearly, Monthly, Best Sequential Move. Flagged (out-of-sequence) rows are highlighted.
-- The PDF is a single formatted report with the same sections, flagged rows shaded the same way.
+## Automated Tests
 
-## API reference
+```bash
+# Run from project root
+/path/to/venv3/bin/python3 -m pytest backend/tests/ -v
+```
 
-| Endpoint | Method | Params | Description |
-|---|---|---|---|
-| `/api/analyze` | GET | `ticker`, `years` (1–15), `months` (1–60) | Live Yahoo Finance fetch + full analysis |
-| `/api/analyze/upload` | POST (multipart) | `file`, `ticker`, `years`, `months` | Same analysis, from an uploaded CSV |
-| `/api/export/xlsx` | POST (JSON body) | the analysis payload from either endpoint above | Downloadable XLSX report |
-| `/api/export/pdf` | POST (JSON body) | the analysis payload from either endpoint above | Downloadable PDF report |
-| `/api/health` | GET | — | Liveness check |
+**37 tests** across 6 modules:
 
-Both analysis endpoints return the same JSON shape: `ticker`, `source`, `range_start`, `range_end`, `trading_days`, `latest_close`, `yearly[]`, `monthly[]`, `best_move_overall`, `best_move_current_year`. That exact object is what the export endpoints expect as their request body — the frontend just forwards whatever it last received.
+| Module | Coverage |
+|---|---|
+| `test_analysis.py` | Yearly/monthly ledgers, sequential max-gain edge cases |
+| `test_unified_scoring.py` | Composite score formula, guardrails, cross-section parity |
+| `test_signal_review.py` | LSEG score bounds, star rating model, unrated assets |
+| `test_gemini_service.py` | API parsing, mock briefing reconciliation, filter logic |
+| `test_cache_manager.py` | TTL expiration, LRU eviction, telemetry |
+| `test_audit_regressions.py` | Dividend yield scaling, filename sanitization, timezone stripping |
+
+---
+
+## Design Decisions & Known Methodology
+
+- **Split-adjusted prices**: `yfinance` is configured with `auto_adjust=True` — all historical OHLCV is adjusted for stock splits and dividends, ensuring pre- and post-split prices are comparable (critical for stocks like NVDA, TSLA, AAPL that have split in recent years).
+- **Consensus Valuation Model**: The 5-star rating is computed as discount/premium to the analyst **median** price target (falling back to mean if median is unavailable, with a log warning). This is an analyst-consensus-based valuation proxy — not a DCF. It is labeled accordingly in the UI.
+- **AI signals are hardlocked**: Gemini generates only narrative text. Every `rating`, `confidence`, and `risk_level` field in every section (AI Modal, Focus Trades, Market Opportunities) is overwritten by `compute_unified_rating()` after the API call returns. If signal review data is unavailable for a market opportunity stock, the fallback is `HOLD / MODERATE / MEDIUM` — never an unverified AI guess.
+- **Timeouts**: Single-ticker AI calls time out at 45s; watchlist briefings at 45s. The frontend uses `AbortController` on all AI fetches with a human-readable timeout message.
+
+---
+
+## Legal & Regulatory Disclaimers
+
+SignalLedger is an observational, algorithmic financial research tool for educational and analytical purposes only. It does not provide personalized investment, legal, or tax advice, nor does it issue individualized recommendations to buy, hold, or sell any security. Past range performance does not guarantee future results. All data is sourced from publicly available third-party providers (Yahoo Finance / LSEG Refinitiv) and may be delayed or inaccurate.

@@ -378,6 +378,15 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* Action buttons inside watchlist header (AI Briefing, Refresh All, Clear All) */
+.wl-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .text-btn {
@@ -3309,10 +3318,17 @@ body {
 
 .signal-modal-body {
   padding: 18px 22px;
+  overflow-x: hidden;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 16px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.signal-modal-body > * {
+  flex-shrink: 0;
 }
 
 .signal-section-box {
@@ -3320,6 +3336,8 @@ body {
   border: 1px solid var(--border-subtle);
   border-radius: 10px;
   padding: 14px 16px;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .signal-section-header {
@@ -3329,6 +3347,7 @@ body {
   margin-bottom: 10px;
   flex-wrap: wrap;
   gap: 8px;
+  min-width: 0;
 }
 
 .signal-section-title {
@@ -3337,6 +3356,9 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--text-primary);
+  overflow-wrap: break-word;
+  word-break: normal;
+  min-width: 0;
 }
 
 .signal-section-sub {
@@ -3356,6 +3378,7 @@ body {
   line-height: 1.55;
   color: var(--text-secondary);
   margin: 0;
+  overflow-wrap: break-word;
 }
 
 /* Distribution Bar */
@@ -3393,6 +3416,7 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 5px;
+  min-width: 0;
 }
 
 .legend-dot {
@@ -3400,16 +3424,23 @@ body {
   height: 8px;
   border-radius: 50%;
   display: inline-block;
+  flex-shrink: 0;
 }
 
-/* 2-column grid for targets and valuation */
+/* 2-column responsive grid for targets and valuation */
 .signal-grid-2col {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 14px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
-@media (max-width: 620px) {
+.signal-grid-2col > * {
+  min-width: 0;
+}
+
+@media (max-width: 640px) {
   .signal-grid-2col {
     grid-template-columns: 1fr;
   }
@@ -3421,6 +3452,7 @@ body {
   font-weight: 700;
   padding: 2px 7px;
   border-radius: 4px;
+  white-space: nowrap;
 }
 
 .signal-upside-badge.positive {
@@ -3435,17 +3467,21 @@ body {
 
 .target-stat-grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 6px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .target-stat-cell {
   display: flex;
   flex-direction: column;
   background: var(--bg-hover);
-  padding: 6px 8px;
+  padding: 6px 4px;
   border-radius: 6px;
   text-align: center;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .target-stat-cell.highlight {
@@ -3459,13 +3495,21 @@ body {
   text-transform: uppercase;
   color: var(--text-muted);
   margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .target-stat-val {
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: clamp(10px, 2.2vw, 12px);
   font-weight: 700;
   color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
 /* Star Rating & Valuation Box */
@@ -3478,6 +3522,12 @@ body {
   letter-spacing: 0.04em;
   background: rgba(99, 102, 241, 0.12);
   color: var(--accent);
+  white-space: nowrap;
+}
+
+.valuation-content {
+  min-width: 0;
+  width: 100%;
 }
 
 .star-rating-row {
@@ -3485,6 +3535,7 @@ body {
   align-items: center;
   gap: 10px;
   margin-bottom: 12px;
+  flex-wrap: wrap;
 }
 
 .star-rating-stars {
@@ -3498,23 +3549,29 @@ body {
   font-size: 12px;
   font-weight: 700;
   color: var(--text-secondary);
+  white-space: nowrap;
 }
 
 .valuation-meta-row {
   display: flex;
   gap: 14px;
+  flex-wrap: wrap;
+  width: 100%;
 }
 
 .val-metric {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .val-metric-label {
   font-size: 10.5px;
   color: var(--text-muted);
   font-weight: 600;
+  overflow-wrap: break-word;
 }
 
 .val-metric-val {
@@ -3522,6 +3579,8 @@ body {
   font-size: 13px;
   font-weight: 700;
   color: var(--text-primary);
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 /* Broker Actions Table */
@@ -3569,7 +3628,7 @@ body {
   margin: 0;
 }
 
-/* ── Gemini AI Observational Suggestion Module ────────────────────────────── */
+/* ── AI Observational Suggestion Module ────────────────────────────── */
 .source-tag-gemini {
   color: var(--accent-primary, #6366f1) !important;
   border-color: rgba(99, 102, 241, 0.35) !important;
@@ -3581,7 +3640,172 @@ body {
   border: 1px solid rgba(99, 102, 241, 0.26);
   border-radius: 10px;
   position: relative;
-  overflow: hidden;
+  min-height: 120px;
+  height: auto;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.gemini-content-wrap {
+  width: 100%;
+  min-width: 0;
+  height: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.gemini-empty-state {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  background: var(--bg-hover);
+  border: 1px dashed var(--border-default);
+  border-radius: 8px;
+  margin-top: 4px;
+}
+
+.gemini-empty-icon {
+  font-size: 20px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.gemini-empty-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.gemini-empty-title {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+}
+
+.gemini-empty-desc {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  margin: 0 0 8px;
+  line-height: 1.4;
+}
+
+.gemini-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 5px 12px;
+  border-radius: 6px;
+  background: var(--accent-primary, #6366f1);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.gemini-action-btn:hover {
+  filter: brightness(1.1);
+}
+
+/* Skeleton Loading State */
+.gemini-loading-state {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 8px 0 4px;
+  width: 100%;
+  min-width: 0;
+}
+
+.gemini-skeleton-verdict {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.gemini-skeleton-pill {
+  height: 24px;
+  width: 90px;
+  border-radius: 6px;
+  background: var(--bg-hover);
+  animation: geminiPulse 1.4s ease-in-out infinite;
+}
+
+.gemini-skeleton-pill.short {
+  width: 130px;
+}
+
+.gemini-skeleton-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.gemini-skeleton-line {
+  height: 11px;
+  border-radius: 4px;
+  background: var(--bg-hover);
+  animation: geminiPulse 1.4s ease-in-out infinite;
+  width: 100%;
+}
+
+.gemini-skeleton-line.title {
+  height: 12px;
+  width: 35%;
+}
+
+.gemini-skeleton-line.short {
+  width: 70%;
+}
+
+.gemini-skeleton-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+@media (max-width: 600px) {
+  .gemini-skeleton-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.gemini-loading-caption {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+@keyframes geminiPulse {
+  0% { opacity: 0.45; }
+  50% { opacity: 0.9; }
+  100% { opacity: 0.45; }
+}
+
+.gemini-shimmer-bar {
+  width: 100%;
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, rgba(99, 102, 241, 0.1) 0%, rgba(99, 102, 241, 0.6) 50%, rgba(99, 102, 241, 0.1) 100%);
+  background-size: 200% 100%;
+  animation: geminiShimmer 1.5s infinite linear;
+}
+
+@keyframes geminiShimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 
 .gemini-header-left {
@@ -3661,29 +3885,30 @@ body {
   font-size: 11px;
 }
 
-.gemini-loading-state {
+.gemini-error-state {
   display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 18px 12px;
-  align-items: center;
-  justify-content: center;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  border-radius: 8px;
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  margin-top: 6px;
+}
+
+.gemini-error-state strong {
+  display: block;
+  color: #ef4444;
+  margin-bottom: 2px;
   font-size: 12px;
-  color: var(--text-muted);
 }
 
-.gemini-shimmer-bar {
-  width: 100%;
-  height: 4px;
-  border-radius: 2px;
-  background: linear-gradient(90deg, rgba(99, 102, 241, 0.1) 0%, rgba(99, 102, 241, 0.6) 50%, rgba(99, 102, 241, 0.1) 100%);
-  background-size: 200% 100%;
-  animation: geminiShimmer 1.5s infinite linear;
-}
-
-@keyframes geminiShimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+.gemini-error-desc {
+  margin: 0;
+  line-height: 1.4;
+  word-break: break-word;
 }
 
 .gemini-verdict-row {
@@ -3855,7 +4080,7 @@ body {
   color: var(--text-muted);
 }
 
-/* ── Watchlist Gemini Briefing Card ─────────────────────────────────────── */
+/* ── Watchlist AI Briefing Card ─────────────────────────────────────── */
 .gemini-action-trigger {
   color: var(--accent-primary, #6366f1) !important;
   border-color: rgba(99, 102, 241, 0.35) !important;
@@ -3964,7 +4189,8 @@ body {
   justify-content: space-between;
 }
 
-.wl-gemini-focus-ticker {
+.wl-gemini-focus-ticker,
+.wl-gemini-focus-header .wl-gemini-ticker-link {
   font-family: var(--font-mono);
   font-weight: 800;
   font-size: 13px;
@@ -4016,8 +4242,84 @@ body {
   font-size: 10px;
   color: var(--text-muted);
   border-top: 1px solid var(--border-subtle);
-  padding-top: 4px;
+  padding-top: 6px;
   margin-top: 2px;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.wl-gemini-focus-timing {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wl-gemini-focus-tags {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+.wl-gemini-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+.wl-gemini-tag strong {
+  font-weight: 700;
+}
+
+/* Risk tags */
+.wl-gemini-tag-risk {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+}
+.wl-gemini-tag-risk.risk-low {
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  color: #34d399;
+}
+.wl-gemini-tag-risk.risk-moderate {
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  color: #fbbf24;
+}
+.wl-gemini-tag-risk.risk-high {
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  color: #f87171;
+}
+
+/* Confidence tags */
+.wl-gemini-tag-conf {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+}
+.wl-gemini-tag-conf.conf-high {
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  color: #34d399;
+}
+.wl-gemini-tag-conf.conf-medium {
+  background: rgba(59, 130, 246, 0.12);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  color: #60a5fa;
+}
+.wl-gemini-tag-conf.conf-low {
+  background: rgba(148, 163, 184, 0.12);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  color: #94a3b8;
 }
 
 .wl-gemini-risks-box {
@@ -4036,6 +4338,419 @@ body {
   margin-bottom: 4px;
 }
 
+/* Market Opportunities Section */
+.wl-gemini-opportunities-box {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 8px 12px 10px;
+  margin-bottom: 10px;
+  position: relative;
+}
+
+.wl-gemini-opp-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.wl-gemini-opp-header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.wl-gemini-opp-title {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.wl-gemini-opp-disclaimer {
+  font-size: 9.5px;
+  color: var(--text-muted);
+  opacity: 0.65;
+  font-style: italic;
+  white-space: nowrap;
+}
+
+.wl-gemini-opp-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.wl-gemini-opp-ctrl-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 500;
+  padding: 3px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+  line-height: 1.2;
+}
+
+.wl-gemini-opp-ctrl-btn:hover {
+  background: var(--bg-hover, rgba(255, 255, 255, 0.06));
+  border-color: var(--border-strong, rgba(255, 255, 255, 0.15));
+  color: var(--text-primary);
+}
+
+.wl-gemini-opp-ctrl-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.wl-gemini-opp-ctrl-btn.is-active,
+.wl-gemini-opp-ctrl-btn[aria-expanded="true"] {
+  background: rgba(59, 130, 246, 0.12);
+  border-color: rgba(59, 130, 246, 0.4);
+  color: #60a5fa;
+}
+
+.wl-opp-refresh-icon {
+  transition: transform 0.4s ease;
+}
+
+.is-refreshing .wl-opp-refresh-icon {
+  animation: wl-opp-spin 0.8s linear infinite;
+}
+
+@keyframes wl-opp-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.wl-opp-filter-badge {
+  font-size: 8.5px;
+  font-weight: 700;
+  background: #3b82f6;
+  color: #fff;
+  padding: 0 4px;
+  border-radius: 8px;
+  min-width: 13px;
+  height: 13px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+/* Collapsible Filters Panel */
+.wl-gemini-opp-filters-panel {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin-bottom: 9px;
+  animation: wl-opp-slide-down 0.18s ease-out;
+}
+
+@keyframes wl-opp-slide-down {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.wl-opp-filters-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.wl-opp-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.wl-opp-filter-label {
+  font-size: 9.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  width: 68px;
+  flex-shrink: 0;
+}
+
+.wl-opp-chip-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.wl-opp-chip {
+  font-size: 9.5px;
+  font-weight: 500;
+  padding: 2px 7px;
+  border-radius: 12px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  line-height: 1.3;
+}
+
+.wl-opp-chip:hover {
+  background: var(--bg-hover, rgba(255, 255, 255, 0.06));
+  border-color: var(--border-strong, rgba(255, 255, 255, 0.18));
+  color: var(--text-primary);
+}
+
+.wl-opp-chip.is-active,
+.wl-opp-chip[aria-pressed="true"] {
+  background: rgba(59, 130, 246, 0.18);
+  border-color: rgba(59, 130, 246, 0.5);
+  color: #60a5fa;
+  font-weight: 600;
+}
+
+.wl-opp-filter-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 2px;
+}
+
+.wl-opp-clear-link {
+  font-size: 9.5px;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 2px 4px;
+  transition: color 0.15s ease;
+}
+
+.wl-opp-clear-link:hover {
+  color: #ef4444;
+}
+
+/* Loading & Empty States */
+.wl-gemini-opp-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px 10px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.wl-gemini-opp-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.12);
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: wl-opp-spin 0.6s linear infinite;
+}
+
+.wl-gemini-opp-empty {
+  text-align: center;
+  padding: 14px 10px;
+  background: var(--bg-secondary);
+  border: 1px dashed var(--border-subtle);
+  border-radius: 6px;
+  margin: 4px 0 6px;
+}
+
+.wl-gemini-opp-empty-msg {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.wl-gemini-opp-empty-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.wl-gemini-opp-btn-text {
+  font-size: 10px;
+  color: #60a5fa;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-weight: 500;
+  text-decoration: underline;
+  padding: 2px 4px;
+}
+
+.wl-gemini-opp-btn-text:hover {
+  color: #93c5fd;
+}
+
+.wl-opp-empty-sep {
+  font-size: 10px;
+  color: var(--text-muted);
+  opacity: 0.5;
+}
+
+/* Rating tag in opportunities */
+.wl-gemini-tag-rating {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 1px 5px;
+  border-radius: 3px;
+  letter-spacing: 0.02em;
+}
+
+.wl-gemini-tag-rating.rating-buy {
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  color: #34d399;
+}
+
+.wl-gemini-tag-rating.rating-hold,
+.wl-gemini-tag-rating.rating-watch {
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  color: #fbbf24;
+}
+
+.wl-gemini-tag-rating.rating-sell {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #f87171;
+}
+
+.wl-gemini-opp-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.wl-gemini-opp-row {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 7px 8px;
+  background: var(--bg-secondary);
+  border-radius: 6px;
+  border: 1px solid var(--border-subtle);
+}
+
+.wl-gemini-opp-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.wl-gemini-opp-ticker {
+  font-family: "JetBrains Mono", "SF Mono", "Fira Code", monospace;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: 0.03em;
+}
+
+.wl-gemini-opp-rationale {
+  font-size: 11px;
+  color: var(--text-secondary);
+  line-height: 1.45;
+  margin: 0;
+}
+
+/* Clickable ticker links inside briefing cards */
+.wl-gemini-ticker-link {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: "JetBrains Mono", "SF Mono", "Fira Code", monospace;
+  font-size: inherit;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: 0.03em;
+  border-bottom: 1px dashed transparent;
+  transition: color 0.15s ease, border-color 0.15s ease;
+  line-height: inherit;
+}
+
+.wl-gemini-ticker-link:hover {
+  color: var(--accent-primary);
+  border-bottom-color: var(--accent-primary);
+}
+
+/* Star button inside opportunity rows */
+.wl-gemini-opp-star {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 3px;
+  margin-left: auto;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  cursor: pointer;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+  line-height: 1;
+}
+
+.wl-gemini-opp-star:hover {
+  color: #FBBF24;
+  background: rgba(251, 191, 36, 0.12);
+  border-color: rgba(251, 191, 36, 0.25);
+  transform: scale(1.15);
+}
+
+.wl-gemini-opp-star:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 1px;
+}
+
+.wl-gemini-opp-star .wl-opp-star-icon {
+  pointer-events: none;
+  transition: fill 0.2s ease, stroke 0.2s ease;
+}
+
+.wl-gemini-opp-star.is-watchlisted {
+  color: #FBBF24;
+}
+
+.wl-gemini-opp-star.is-watchlisted .wl-opp-star-icon {
+  fill: #FBBF24;
+  stroke: #FBBF24;
+  filter: drop-shadow(0 0 3px rgba(251, 191, 36, 0.5));
+}
+
+.wl-gemini-opp-star.pop {
+  animation: starPop 0.28s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
 .wl-gemini-actions-row {
   display: flex;
   align-items: center;
@@ -4044,3 +4759,515 @@ body {
   margin-top: 8px;
 }
 
+@media (max-width: 480px) {
+  .signal-modal-container {
+    max-height: 95vh;
+    border-radius: 10px;
+  }
+  .signal-modal-header {
+    padding: 14px 16px 10px;
+  }
+  .signal-modal-sources-bar {
+    padding: 6px 16px;
+  }
+  .signal-modal-body {
+    padding: 14px 12px;
+    gap: 12px;
+  }
+  .signal-section-box {
+    padding: 12px 10px;
+  }
+  .target-stat-grid {
+    gap: 4px;
+  }
+  .target-stat-cell {
+    padding: 5px 2px;
+  }
+}
+
+
+/* ==========================================================================
+   RESPONSIVE — MOBILE-FIRST AUDIT FIXES
+   Breakpoints: base (mobile ≤390px) → 640px → 768px → 960px → 1280px+
+   Scope: layout fluidity and touch targets only.
+   ========================================================================== */
+
+/* ── 1. Prevent horizontal scroll at all widths ─────────────────────────── */
+html, body {
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ── 2. Touch targets: action-btn, nav-link, icon-close-btn ─────────────── */
+/* These are currently 38px — below 44px WCAG minimum for mobile */
+.action-btn,
+.nav-link {
+  min-height: 44px;
+}
+
+.icon-close-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+}
+
+.text-btn {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+}
+
+/* ── 3. Watchlist filter/sort pill buttons — minimum touch height ────────── */
+.wl-sort-btn,
+.wl-filter-btn {
+  min-height: 36px;
+  padding: 5px 12px;
+}
+
+/* ==========================================================================
+   BASE MOBILE STYLES (≤640px — phones)
+   ========================================================================== */
+@media (max-width: 640px) {
+
+  /* App layout — tighter side padding */
+  .app-layout {
+    padding: 12px 12px 80px;
+  }
+
+  /* ── Header ───────────────────────────────────────────────────────────── */
+  .header-container {
+    padding: 12px 14px;
+    gap: 10px;
+  }
+
+  .brand-title {
+    font-size: 17px;
+  }
+
+  .brand-sub {
+    display: none; /* Too long for small screens; brand name is enough */
+  }
+
+  /* Header actions row: don't let text wrap, keep tight */
+  .header-actions {
+    width: 100%;
+    justify-content: flex-end;
+    gap: 6px;
+  }
+
+  /* Shrink nav-link text on very small screens */
+  .nav-link {
+    font-size: 12.5px;
+    padding: 0 10px;
+    gap: 5px;
+  }
+
+  /* Action buttons: shrink label on small phones */
+  .action-btn {
+    font-size: 12.5px;
+    padding: 0 10px;
+    gap: 6px;
+  }
+
+  /* ── Card system ─────────────────────────────────────────────────────── */
+  .card {
+    margin-bottom: 16px;
+    border-radius: 10px;
+  }
+
+  .card-header {
+    padding: 14px 16px 12px;
+    gap: 10px;
+  }
+
+  .card-header h2 {
+    font-size: 16px;
+  }
+
+  .card-body {
+    padding: 16px;
+  }
+
+  /* ── Control bar ─────────────────────────────────────────────────────── */
+  .control-card {
+    padding: 14px 16px;
+  }
+
+  .control-grid {
+    gap: 12px;
+  }
+
+  /* Analyze button — full width tap target on mobile */
+  .action-group {
+    width: 100%;
+  }
+
+  .action-group .btn {
+    width: 100%;
+    justify-content: center;
+    height: 48px;
+    font-size: 15px;
+  }
+
+  /* ── Summary card ────────────────────────────────────────────────────── */
+  .summary-card {
+    padding: 16px;
+  }
+
+  .summary-symbol {
+    font-size: 28px;
+  }
+
+  .summary-top {
+    gap: 12px;
+    padding-bottom: 14px;
+    margin-bottom: 14px;
+  }
+
+  /* Stack export actions vertically */
+  .export-actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .export-actions .btn {
+    flex: 1;
+    min-width: 120px;
+  }
+
+  /* ── Metrics grid: 2-col min on mobile ───────────────────────────────── */
+  .metrics-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  .metric-tile {
+    padding: 12px 14px;
+  }
+
+  .metric-value {
+    font-size: 20px;
+  }
+
+  /* ── Stats grid: full-width single column ────────────────────────────── */
+  .stats-grid {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  /* ── Target stat grid: 3 cols on mobile (was 5 — too cramped) ─────────── */
+  .target-stat-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 5px;
+  }
+
+  /* ── Charts ──────────────────────────────────────────────────────────── */
+  .chart-wrapper--line {
+    height: 240px;
+  }
+
+  .chart-wrapper--bar {
+    height: 220px;
+  }
+
+  .chart-container-wrapper {
+    padding: 12px 10px 10px;
+    border-radius: 8px;
+  }
+
+  /* Chart tech toolbar: scrollable on small screens */
+  .chart-tech-toolbar {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding: 6px 12px;
+    margin: 0 0 12px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .chart-tech-toolbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Range presets: horizontal scroll */
+  .range-presets {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .range-presets::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* ── Watchlist panel header controls ─────────────────────────────────── */
+  .history-controls,
+  .wl-header-right {
+    gap: 6px;
+  }
+
+  /* "AI Briefing", "Refresh All", "Clear All" — allow wrapping */
+  .wl-header-right {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  /* ── Watchlist toolbar: stack filter and sort ────────────────────────── */
+  .wl-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+    padding: 8px 0 10px;
+  }
+
+  /* Filter/sort bars: scrollable instead of wrapping */
+  .wl-filter-bar,
+  .wl-sort-bar {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 2px; /* room for outline */
+  }
+
+  .wl-filter-bar::-webkit-scrollbar,
+  .wl-sort-bar::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* ── Watchlist AI Briefing card ──────────────────────────────────────── */
+  .wl-gemini-briefing-card {
+    margin: 6px 0 10px;
+    padding: 12px 12px;
+  }
+
+  /* Focus trade grid: single column on mobile */
+  .wl-gemini-focus-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  /* Opportunities opp-header: stack on small */
+  .wl-gemini-opp-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+
+  /* ── Signal modal: full-height bottom-sheet on mobile ───────────────────── */
+  .signal-modal-backdrop {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .signal-modal-container {
+    max-height: 92vh;
+    border-radius: 14px 14px 0 0;
+    width: 100%;
+  }
+
+  /* ── History drawer ───────────────────────────────────────────────────── */
+  .history-drawer {
+    padding: 14px 14px;
+  }
+
+  /* History list chips: wrap properly */
+  .history-list {
+    max-height: 160px;
+    gap: 8px;
+  }
+
+  .history-item {
+    padding: 8px 12px;
+  }
+
+  /* ── Status banner / notification ────────────────────────────────────── */
+  .status-banner {
+    padding: 10px 14px;
+    gap: 10px;
+  }
+
+  .status-message {
+    font-size: 13px;
+  }
+
+  /* ── Table: ensure horizontal scroll ────────────────────────────────── */
+  .table-responsive {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* ── Skeleton loader: 1 col ──────────────────────────────────────────── */
+  .skeleton-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ==========================================================================
+   SMALL PHONE (≤390px — iPhone SE, Galaxy A etc.)
+   Extra compression for the tightest screens.
+   ========================================================================== */
+@media (max-width: 390px) {
+  .app-layout {
+    padding: 10px 10px 80px;
+  }
+
+  .header-container {
+    padding: 10px 12px;
+  }
+
+  /* Hide action button labels, show icon only */
+  .action-btn span:not(.history-badge):not(.watchlist-badge) {
+    display: none;
+  }
+
+  .action-btn {
+    padding: 0 10px;
+    min-width: 44px;
+  }
+
+  /* Nav link: icon only */
+  .nav-link span {
+    display: none;
+  }
+
+  .nav-link {
+    padding: 0 10px;
+    min-width: 44px;
+    justify-content: center;
+  }
+
+  .brand-title {
+    font-size: 15px;
+  }
+
+  .card-header {
+    padding: 12px 12px 10px;
+  }
+
+  .card-body {
+    padding: 12px;
+  }
+
+  .control-card {
+    padding: 12px;
+  }
+
+  .summary-card {
+    padding: 12px;
+  }
+
+  .summary-symbol {
+    font-size: 24px;
+  }
+
+  /* Metrics: 1 col on smallest phones */
+  .metrics-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .metric-value {
+    font-size: 18px;
+  }
+
+  /* Target stat: still 3 col but tighter */
+  .target-stat-grid {
+    gap: 4px;
+  }
+
+  .signal-modal-container {
+    max-height: 95vh;
+  }
+
+  /* Briefing card: no horizontal margins */
+  .wl-gemini-briefing-card {
+    margin: 4px 0 8px;
+    padding: 10px 10px;
+  }
+}
+
+/* ==========================================================================
+   TABLET (768px — iPad, Android tablet)
+   Add a real 768px breakpoint that was missing.
+   ========================================================================== */
+@media (min-width: 641px) and (max-width: 960px) {
+  /* Two-column control grid */
+  .control-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .action-group {
+    grid-column: span 2;
+  }
+
+  /* Two-column metrics */
+  .metrics-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  /* Briefing focus grid: 2-col on tablet */
+  .wl-gemini-focus-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  /* Moderate card padding reduction */
+  .card-header {
+    padding: 16px 20px 14px;
+  }
+
+  .card-body {
+    padding: 20px;
+  }
+
+  .summary-card {
+    padding: 20px 22px;
+  }
+
+  .summary-symbol {
+    font-size: 32px;
+  }
+
+  /* Target stat: 5 col is fine on tablet */
+  .target-stat-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+/* ==========================================================================
+   DESKTOP (≥1280px — larger monitors)
+   Intentional use of horizontal space.
+   ========================================================================== */
+@media (min-width: 1280px) {
+  .app-layout {
+    padding: 28px 24px 100px;
+  }
+
+  /* 3-col metrics grid on wide screens */
+  .metrics-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  /* Briefing focus grid: up to 3 columns on wide */
+  .wl-gemini-focus-grid {
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  }
+
+  /* 2-col stats on wide desktop */
+  .stats-grid {
+    grid-template-columns: repeat(2, minmax(320px, 1fr));
+  }
+
+  /* More breathing room in cards */
+  .card-header {
+    padding: 22px 28px 18px;
+  }
+
+  .card-body {
+    padding: 28px;
+  }
+}

@@ -113,6 +113,8 @@ class TestGeminiService(unittest.TestCase):
                     "rationale": "Holding solid 52W support with 11% consensus upside.",
                     "timing_note": "Near consolidation boundary",
                     "risk_level": "LOW",
+                    "confidence": "HIGH",
+                    "confidence_score": 0.85,
                 }
             ],
             "macro_risks": ["Upcoming FOMC interest rate decision"],
@@ -133,8 +135,15 @@ class TestGeminiService(unittest.TestCase):
                     "metrics": {
                         "latest_close": 220.0,
                         "diff_from_latest_low_pct": 33.3,
-                        "diff_from_latest_high_pct": -6.38,
+                        "diff_from_latest_high_pct": -15.0,
                         "signal": "BUY",
+                        "signal_review": {
+                            "score": 1.4,
+                            "analyst_count": 25,
+                            "distribution": {"strong_buy": 15, "buy": 10},
+                            "price_targets": {"implied_upside_pct": 25.0},
+                            "valuation": {"star_rating": 4},
+                        },
                     },
                 }
             ]
@@ -146,7 +155,97 @@ class TestGeminiService(unittest.TestCase):
             self.assertEqual(res["data"]["overall_sentiment"], "BULLISH")
             self.assertEqual(len(res["data"]["focus_trades"]), 1)
             self.assertEqual(res["data"]["focus_trades"][0]["ticker"], "AAPL")
+            self.assertEqual(res["data"]["focus_trades"][0]["risk_level"], "LOW")
+            self.assertEqual(res["data"]["focus_trades"][0]["confidence"], "HIGH")
+            self.assertEqual(res["data"]["focus_trades"][0]["confidence_score"], 0.85)
 
+
+
+    @patch("gemini_service.fetch_signal_review")
+    @patch("gemini_service._call_gemini_api")
+    def test_watchlist_briefing_with_filters_mock(self, mock_call, mock_fetch_rev):
+        def fake_fetch_rev(sym):
+            if sym == "MSFT":
+                return {
+                    "score": 1.4,
+                    "analyst_count": 30,
+                    "distribution": {"strong_buy": 20, "buy": 10},
+                    "price_targets": {"implied_upside_pct": 25.0},
+                    "valuation": {"star_rating": 5},
+                }
+            return {
+                "score": 3.2,
+                "analyst_count": 20,
+                "distribution": {"hold": 15, "sell": 5},
+                "price_targets": {"implied_upside_pct": -5.0},
+                "valuation": {"star_rating": 2},
+            }
+        mock_fetch_rev.side_effect = fake_fetch_rev
+        mock_briefing_output = {
+            "overall_sentiment": "BULLISH",
+            "sentiment_score": 4.0,
+            "market_briefing": "Solid market backdrop.",
+            "focus_trades": [
+                {
+                    "ticker": "AAPL",
+                    "rating": "BUY",
+                    "setup_type": "Support rebound",
+                    "rationale": "Holding 50-day moving average.",
+                    "timing_note": "Near support",
+                    "risk_level": "LOW",
+                    "confidence": "HIGH",
+                }
+            ],
+            "macro_risks": ["Risk 1"],
+            "market_opportunities": [
+                {
+                    "ticker": "MSFT",
+                    "rating": "BUY",
+                    "risk_level": "LOW",
+                    "confidence": "HIGH",
+                    "rationale": "Base consolidation.",
+                },
+                {
+                    "ticker": "JPM",
+                    "rating": "HOLD",
+                    "risk_level": "HIGH",
+                    "confidence": "LOW",
+                    "rationale": "Extended near peaks.",
+                },
+            ],
+            "disclaimer": "AI-generated overview.",
+        }
+        mock_call.return_value = {
+            "success": True,
+            "configured": True,
+            "data": mock_briefing_output,
+            "model": "gemini-2.5-flash",
+        }
+
+        payload = {
+            "watchlist": [
+                {
+                    "ticker": "AAPL",
+                    "companyName": "Apple Inc.",
+                    "metrics": {"latest_close": 220.0},
+                }
+            ],
+            "filters": {
+                "risk": ["LOW"],
+                "confidence": ["HIGH"],
+                "rating": ["BUY"],
+            },
+        }
+        with patch.dict(os.environ, {"GEMINI_API_KEY": "AIzaSyFakeKey12345"}):
+            res = gemini_watchlist_briefing(payload=payload, refresh=True)
+            self.assertTrue(res["success"])
+            opps = res["data"]["market_opportunities"]
+            # JPM should be filtered out by post-reconciliation filter since it's HOLD / HIGH / LOW
+            self.assertEqual(len(opps), 1)
+            self.assertEqual(opps[0]["ticker"], "MSFT")
+            self.assertEqual(opps[0]["risk_level"], "LOW")
+            self.assertEqual(opps[0]["confidence"], "HIGH")
+            self.assertEqual(opps[0]["rating"], "BUY")
 
 if __name__ == "__main__":
     unittest.main()
