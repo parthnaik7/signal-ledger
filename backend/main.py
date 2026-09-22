@@ -46,15 +46,50 @@ from gemini_service import (
 
 app = FastAPI(title="SignalLedger API")
 
-allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "*")
+allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "")
 allowed_origins = [o.strip() for o in allowed_origins_env.split(",") if o.strip()]
 
+# Fail-safe: if ALLOWED_ORIGINS is not set, restrict to production and local dev origins.
+# Set ALLOWED_ORIGINS=* in render.yaml explicitly if broad cross-origin access is required.
+default_origins = [
+    "https://signalledger.onrender.com",
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins if allowed_origins else ["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=allowed_origins if allowed_origins else default_origins,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type", "Accept", "X-Admin-Token"],
 )
+
+
+# ---------------------------------------------------------------------------
+# Security headers middleware
+# ---------------------------------------------------------------------------
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request as StarletteRequest
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: StarletteRequest, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["X-XSS-Protection"] = "0"  # rely on CSP in modern browsers
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline'; "
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+            "font-src 'self' https://fonts.gstatic.com; "
+            "img-src 'self' data:; "
+            "connect-src 'self';"
+        )
+        return response
+
+
+app.add_middleware(SecurityHeadersMiddleware)
 
 
 class AnalysisResponse(BaseModel):
@@ -207,10 +242,21 @@ def health():
     return {"status": "ok"}
 
 
+def _require_admin(request: Request) -> None:
+    """Validates X-Admin-Token header against ADMIN_TOKEN env var. Raises 503/403 on failure."""
+    admin_token = os.getenv("ADMIN_TOKEN", "").strip()
+    if not admin_token:
+        raise HTTPException(status_code=503, detail="Admin endpoints are not enabled on this instance.")
+    provided = request.headers.get("X-Admin-Token", "").strip()
+    if not provided or provided != admin_token:
+        raise HTTPException(status_code=403, detail="Forbidden.")
+
+
 @app.get("/api/cache/stats")
 @app.get("/api/session/stats")
-def system_stats():
-    """Returns telemetry diagnostics from the intelligent cache and persistent session manager."""
+def system_stats(request: Request):
+    """Returns telemetry diagnostics. Requires X-Admin-Token header matching ADMIN_TOKEN env var."""
+    _require_admin(request)
     return {
         "cache": cache_manager.get_stats(),
         "session": session_manager.get_stats(),
@@ -218,8 +264,9 @@ def system_stats():
 
 
 @app.post("/api/cache/clear")
-def cache_clear():
-    """Clears all in-memory cached responses."""
+def cache_clear(request: Request):
+    """Clears all in-memory cached responses. Requires X-Admin-Token header."""
+    _require_admin(request)
     count = cache_manager.invalidate()
     return {"status": "cleared", "evicted_entries": count}
 
@@ -310,10 +357,9 @@ def get_signal_review(
 
 @app.get("/api/gemini/status")
 def gemini_status():
-    """Returns whether GEMINI_API_KEY is configured in the environment and active model name."""
+    """Returns whether the AI provider is configured. Model/vendor identity is intentionally omitted."""
     return {
         "configured": is_gemini_configured(),
-        "model": DEFAULT_GEMINI_MODEL,
     }
 
 

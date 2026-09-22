@@ -247,5 +247,48 @@ class TestGeminiService(unittest.TestCase):
             self.assertEqual(opps[0]["confidence"], "HIGH")
             self.assertEqual(opps[0]["rating"], "BUY")
 
+    @patch("gemini_service._call_gemini_api")
+    def test_watchlist_briefing_none_signal_review_does_not_crash(self, mock_call):
+        mock_briefing_output = {
+            "overall_sentiment": "NEUTRAL",
+            "market_summary": "Summary",
+            "focus_trades": [],
+            "market_opportunities": [],
+            "risk_flags": [],
+            "disclaimer": "Disclaimer",
+        }
+        mock_call.return_value = {
+            "success": True,
+            "configured": True,
+            "data": mock_briefing_output,
+            "model": "gemini-2.5-flash",
+        }
+
+        # Case where signal_review is explicitly None in metrics
+        payload = {
+            "watchlist": [
+                {
+                    "ticker": "SPY",
+                    "companyName": "SPDR S&P 500 ETF Trust",
+                    "metrics": {
+                        "latest_close": 500.0,
+                        "signal": None,
+                        "signal_review": None,
+                        "diff_from_latest_low_pct": 10.0,
+                        "diff_from_latest_high_pct": -2.0,
+                    },
+                },
+                {
+                    "ticker": "XYZ",
+                    "metrics": None,
+                }
+            ]
+        }
+        with patch.dict(os.environ, {"GEMINI_API_KEY": "AIzaSyFakeKey12345"}):
+            res = gemini_watchlist_briefing(payload=payload, refresh=True)
+            self.assertTrue(res["success"])
+            self.assertEqual(res["data"]["overall_sentiment"], "NEUTRAL")
+
+
 if __name__ == "__main__":
     unittest.main()

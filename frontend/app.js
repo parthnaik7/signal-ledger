@@ -3251,11 +3251,11 @@ function renderMarketOpportunitiesList(opps) {
     return `
       <div class="wl-gemini-opp-row">
         <div class="wl-gemini-opp-left">
-          <button type="button" class="wl-gemini-ticker-link" data-ticker="${rawSym}" title="Analyze ${sym}">${sym}</button>
+          <button type="button" class="wl-gemini-ticker-link" data-ticker="${sym}" title="Analyze ${sym}">${sym}</button>
           <span class="wl-gemini-tag wl-gemini-tag-rating rating-${rating.toLowerCase()}">${escapeHtml(rating)}</span>
           <span class="wl-gemini-tag wl-gemini-tag-risk risk-${risk.toLowerCase()}">Risk: <strong>${escapeHtml(risk)}</strong></span>
           <span class="wl-gemini-tag wl-gemini-tag-conf conf-${confGrade.toLowerCase()}">Conf: <strong>${escapeHtml(confGrade)}</strong></span>
-          <button type="button" class="wl-gemini-opp-star ${watchlisted ? "is-watchlisted" : ""}" data-ticker="${rawSym}" title="${watchlisted ? "Remove from Watchlist" : "Add to Watchlist"}" aria-label="Add ${sym} to Watchlist">
+          <button type="button" class="wl-gemini-opp-star ${watchlisted ? "is-watchlisted" : ""}" data-ticker="${sym}" title="${watchlisted ? "Remove from Watchlist" : "Add to Watchlist"}" aria-label="Add ${sym} to Watchlist">
             <svg class="wl-opp-star-icon" style="fill: ${watchlisted ? "#FBBF24" : "none"}; stroke: ${watchlisted ? "#FBBF24" : "currentColor"};" viewBox="0 0 24 24" width="13" height="13" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
           </button>
         </div>

@@ -108,7 +108,7 @@ def _call_gemini_api(
                     "error": "No response candidate returned by AI service.",
                 }
 
-            parts = candidates[0].get("content", {}).get("parts", [])
+            parts = (candidates[0].get("content") or {}).get("parts", [])
             text_output = ""
             for part in parts:
                 if isinstance(part, dict) and "text" in part:
@@ -167,7 +167,7 @@ def _call_gemini_api(
         parsed_err = None
         try:
             err_json = json.loads(err_body)
-            parsed_err = err_json.get("error", {}).get("message")
+            parsed_err = (err_json.get("error") or {}).get("message") if isinstance(err_json, dict) else None
         except Exception:
             pass
         clean_msg = parsed_err or err_body.strip() or f"HTTP {http_err.code}"
@@ -422,11 +422,12 @@ def analyze_watchlist_with_gemini(watchlist_items: List[Dict[str, Any]], filters
         name = item.get("companyName", "")
         m = item.get("metrics") or {}
         close = m.get("latest_close")
-        sig = m.get("signal_review", {}).get("verdict") or m.get("signal") or "UNRATED"
+        sig_rev = m.get("signal_review") or {}
+        sig = sig_rev.get("verdict") or m.get("signal") or "UNRATED"
         diff_low = m.get("diff_from_latest_low_pct")
         diff_high = m.get("diff_from_latest_high_pct")
         move_yr = m.get("best_move_year_pct")
-        upside = m.get("signal_review", {}).get("upside_pct")
+        upside = sig_rev.get("upside_pct")
 
         summary_line = f"- {sym} ({name}): Close ${close}, Signal: {sig}"
         if diff_low is not None:
