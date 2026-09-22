@@ -2671,13 +2671,15 @@ function computeStockSignal(data) {
     return { signal: "UNRATED", icon: "—", score: null, reason: "Insufficient data", review: null };
   }
 
-  // 1. Primary: Use institutional Signal Review if present
+  // 1. Primary: Use institutional Signal Review if present and covered
   const review = data.signal_review;
-  if (review && review.verdict) {
-    const verdict = review.verdict;
+  if (review && review.verdict && review.verdict !== "UNRATED") {
+    const unified = review.unified_rating || {};
+    const verdict = unified.signal || review.verdict;
     let icon = "●";
     if (verdict === "BUY") icon = "▲";
     else if (verdict === "SELL") icon = "▼";
+    else if (verdict === "HOLD") icon = "■";
     else if (verdict === "UNRATED") icon = "—";
 
     const parts = [];
@@ -2706,22 +2708,19 @@ function computeStockSignal(data) {
     };
   }
 
-  // 2. Secondary: If precomputed/saved in watchlist metrics
-  if (data.signal) {
-    let icon = "●";
-    if (data.signal === "BUY") icon = "▲";
-    else if (data.signal === "SELL") icon = "▼";
-    else if (data.signal === "UNRATED") icon = "—";
-    return {
-      signal: data.signal,
-      icon,
-      score: null,
-      reason: data.signalReason || "",
-      review: null,
-    };
-  }
+  // 2. Secondary: Intelligent ETF and Unrated Asset Range Handling
+  const sym = (data.ticker || "").toUpperCase();
+  const company = data.company_name || "";
+  const isEtf = /ETF|Trust|Fund|Index|Shares|Invesco|Vanguard|SPDR|iShares/i.test(company) ||
+    ["SPY", "QQQ", "IWM", "VOO", "DIA", "GLD", "TLT", "XLK", "XLF", "XLE", "VTI", "SMH", "SOXX", "ARKK"].includes(sym);
 
-  return { signal: "UNRATED", icon: "—", score: null, reason: "Unrated asset", review: null };
+  const signal = isEtf ? "ETF · RANGE" : (data.signal || "UNRATED");
+  const icon = isEtf ? "⧉" : (signal === "BUY" ? "▲" : (signal === "SELL" ? "▼" : (signal === "HOLD" ? "■" : "—")));
+  const reason = isEtf
+    ? "Exchange-Traded Fund — Sequential Range Intelligence Active"
+    : (data.signalReason || "Uncovered Security — Sequential Range Intelligence Active");
+
+  return { signal, icon, score: null, reason, review: review || null };
 }
 
 function updateStockSignalBadge(data) {
@@ -2734,9 +2733,10 @@ function updateStockSignalBadge(data) {
 
   const res = computeStockSignal(data);
   badge.style.display = "inline-flex";
-  badge.className = `signal-tag signal-tag--interactive signal-${res.signal.toLowerCase()}`;
+  const sigClass = res.signal.toLowerCase().replace(/[^a-z0-9]/g, "-").replace(/-+/g, "-");
+  badge.className = `signal-tag signal-tag--interactive signal-${sigClass}`;
   badge.innerHTML = `<span class="signal-icon">${res.icon}</span> ${res.signal} <span class="signal-inspect-hint" aria-hidden="true">↗</span>`;
-  badge.title = `Institutional Verdict: ${res.signal}${res.score ? ` (Score: ${res.score.toFixed(2)})` : ""} — ${res.reason}. Click to inspect full review breakdown.`;
+  badge.title = `${res.reason}. Click to inspect full review & range dynamics breakdown.`;
 }
 
 function openSignalReviewModal(review, ticker, companyName) {
@@ -2751,49 +2751,103 @@ function openSignalReviewModal(review, ticker, companyName) {
   if (els.signalModalCompany) els.signalModalCompany.textContent = safeCompany;
 
   if (!r || r.verdict === "UNRATED") {
+    const isEtf = /ETF|Trust|Fund|Index|Shares|Invesco|Vanguard|SPDR|iShares/i.test(safeCompany) ||
+      ["SPY", "QQQ", "IWM", "VOO", "DIA", "GLD", "TLT", "XLK", "XLF", "XLE", "VTI", "SMH", "SOXX", "ARKK"].includes(safeTicker.toUpperCase());
+
     if (els.signalModalVerdictBadge) {
-      els.signalModalVerdictBadge.className = "signal-modal-verdict-badge signal-unrated";
-      els.signalModalVerdictBadge.textContent = "UNRATED";
+      els.signalModalVerdictBadge.className = isEtf
+        ? "signal-modal-verdict-badge badge-etf"
+        : "signal-modal-verdict-badge badge-unrated";
+      els.signalModalVerdictBadge.textContent = isEtf ? "ETF · INDEX" : "UNCOVERED";
     }
-    if (els.signalModalScore) els.signalModalScore.textContent = "No Institutional Coverage";
-    if (els.signalAnalystCount) els.signalAnalystCount.textContent = "0 Analysts";
+    if (els.signalModalScore) {
+      els.signalModalScore.textContent = isEtf ? "Sequential Range Active" : "Technical Range Active";
+    }
+    if (els.signalAnalystCount) {
+      els.signalAnalystCount.textContent = isEtf ? "Exchange-Traded Fund" : "0 Analysts Covered";
+    }
+
+    const curPrice = currentAnalysis?.latest_close || r?.price_targets?.current || null;
+    const low52 = currentAnalysis?.latest_low != null ? currentAnalysis.latest_low : null;
+    const high52 = currentAnalysis?.latest_high != null ? currentAnalysis.latest_high : null;
+    const diffLow = currentAnalysis?.diff_from_latest_low_pct != null ? currentAnalysis.diff_from_latest_low_pct : null;
+    const diffHigh = currentAnalysis?.diff_from_latest_high_pct != null ? currentAnalysis.diff_from_latest_high_pct : null;
+    const bestYr = currentAnalysis?.best_move_current_year != null ? currentAnalysis.best_move_current_year : null;
+    const bestAll = currentAnalysis?.best_move_overall != null ? currentAnalysis.best_move_overall : null;
+
     if (els.signalSummaryText) {
-      els.signalSummaryText.textContent = r?.summary || "No institutional analyst coverage, Refinitiv consensus rating, or price targets are currently published for this asset.";
+      if (isEtf) {
+        els.signalSummaryText.innerHTML = `<strong>${escapeHtml(safeTicker)}</strong> is an Exchange-Traded Fund (${escapeHtml(safeCompany || "Index Basket")}). Wall Street equity research analysts do not issue individual price targets or buy/sell consensus ratings for ETFs. Instead, evaluate ${escapeHtml(safeTicker)} using the <strong>52-Week Range Channel</strong>, <strong>Sequential Volatility Gain</strong> (${bestYr != null ? `+${bestYr.toFixed(1)}% this year` : "active"}), and AI Research perspective below.`;
+      } else {
+        els.signalSummaryText.innerHTML = `<strong>${escapeHtml(safeTicker)}</strong> (${escapeHtml(safeCompany || "Public Security")}) does not currently have sell-side Wall Street analyst coverage or Refinitiv consensus ratings reported on major institutional feeds. SignalLedger 52-week channel bounds and sequential range intelligence are active below.`;
+      }
     }
 
-    if (els.distStrongBuy) els.distStrongBuy.style.width = "0%";
-    if (els.distBuy) els.distBuy.style.width = "0%";
-    if (els.distHold) els.distHold.style.width = "0%";
-    if (els.distSell) els.distSell.style.width = "0%";
-    if (els.distStrongSell) els.distStrongSell.style.width = "0%";
+    // Informative range notice replacing empty 0% analyst distribution bars
+    if (els.signalDistBar) els.signalDistBar.style.display = "none";
+    if (els.signalDistLegend) {
+      els.signalDistLegend.innerHTML = `
+        <div class="unrated-dist-notice">
+          <span style="font-size:15px;line-height:1;">ℹ️</span>
+          <div>
+            <strong>Why no analyst breakdown?</strong> Sell-side analyst distribution tables and Refinitiv scores apply to covered equities. For ${isEtf ? "ETFs and index baskets" : "uncovered securities"}, trade timing is evaluated using the <strong>Sequential Range Ledger</strong> and <strong>52-Week Channel Dynamics</strong>.
+          </div>
+        </div>
+      `;
+    }
 
-    if (els.cntStrongBuy) els.cntStrongBuy.textContent = "0";
-    if (els.cntBuy) els.cntBuy.textContent = "0";
-    if (els.cntHold) els.cntHold.textContent = "0";
-    if (els.cntSell) els.cntSell.textContent = "0";
-    if (els.cntStrongSell) els.cntStrongSell.textContent = "0";
+    // 52-Week Range Channel (replaces empty dashes in Price Targets)
+    if (els.targetCurVal) els.targetCurVal.textContent = curPrice != null ? formatPrice(curPrice) : "—";
+    if (els.targetLowVal) els.targetLowVal.textContent = low52 != null ? formatPrice(low52) : "—";
+    if (els.targetMeanVal) els.targetMeanVal.textContent = (low52 != null && high52 != null) ? formatPrice((low52 + high52) / 2) : "—";
+    if (els.targetMedianVal) els.targetMedianVal.textContent = diffLow != null ? `${diffLow >= 0 ? "+" : ""}${diffLow.toFixed(1)}%` : "—";
+    if (els.targetHighVal) els.targetHighVal.textContent = high52 != null ? formatPrice(high52) : "—";
 
     if (els.signalUpsideBadge) {
-      els.signalUpsideBadge.textContent = "—";
-      els.signalUpsideBadge.className = "signal-upside-badge";
+      if (diffHigh != null) {
+        els.signalUpsideBadge.textContent = diffHigh >= -2.0 ? "At 52W High Channel" : `${Math.abs(diffHigh).toFixed(1)}% to 52W High`;
+        els.signalUpsideBadge.className = "signal-upside-badge positive";
+      } else {
+        els.signalUpsideBadge.textContent = "52W Range Active";
+        els.signalUpsideBadge.className = "signal-upside-badge";
+      }
     }
-    if (els.targetCurVal) els.targetCurVal.textContent = currentAnalysis?.latest_close ? formatPrice(currentAnalysis.latest_close) : "—";
-    if (els.targetLowVal) els.targetLowVal.textContent = "—";
-    if (els.targetMeanVal) els.targetMeanVal.textContent = "—";
-    if (els.targetMedianVal) els.targetMedianVal.textContent = "—";
-    if (els.targetHighVal) els.targetHighVal.textContent = "—";
+
+    // Range Posture & Sequential Channel Dynamics (replaces empty Valuation)
+    const rangePct = (curPrice && low52 && high52 && high52 > low52)
+      ? Math.min(100, Math.max(0, ((curPrice - low52) / (high52 - low52)) * 100))
+      : 50;
+
+    let postureText = "Consolidation Mid-Range";
+    let postureBadgeClass = "signal-val-badge status-neutral";
+    let postureStars = 3;
+    if (rangePct >= 75) {
+      postureText = "Upper Channel / Momentum";
+      postureBadgeClass = "signal-val-badge status-positive";
+      postureStars = 4;
+    } else if (rangePct <= 25) {
+      postureText = "Support / Accumulation Zone";
+      postureBadgeClass = "signal-val-badge status-info";
+      postureStars = 4;
+    }
 
     if (els.signalValStatus) {
-      els.signalValStatus.textContent = "Unrated";
-      els.signalValStatus.className = "signal-val-badge";
+      els.signalValStatus.textContent = postureText;
+      els.signalValStatus.className = postureBadgeClass;
     }
-    if (els.signalStarRating) els.signalStarRating.textContent = "☆☆☆☆☆";
-    if (els.signalStarScore) els.signalStarScore.textContent = "N/A";
-    if (els.signalFairValueVal) els.signalFairValueVal.textContent = "—";
-    if (els.signalDiscountVal) els.signalDiscountVal.textContent = "—";
+    if (els.signalStarRating) els.signalStarRating.textContent = "★".repeat(postureStars) + "☆".repeat(5 - postureStars);
+    if (els.signalStarScore) els.signalStarScore.textContent = `${rangePct.toFixed(0)}th Percentile Range`;
+    if (els.signalFairValueVal) els.signalFairValueVal.textContent = high52 != null ? formatPrice(high52) : (curPrice != null ? formatPrice(curPrice) : "—");
+    if (els.signalDiscountVal) els.signalDiscountVal.textContent = diffHigh != null ? `${diffHigh.toFixed(1)}% from High` : "—";
 
+    // Technical Range Milestones in Broker Table
     if (els.signalBrokerTbody) {
-      els.signalBrokerTbody.innerHTML = `<tr><td colspan="5" class="empty-broker-row">No broker actions available for this asset.</td></tr>`;
+      els.signalBrokerTbody.innerHTML = `
+        <tr><td>Technical Support</td><td><strong>52-Week Low</strong></td><td><span class="broker-badge badge-reiterated">Range Floor</span></td><td>${low52 != null ? formatPrice(low52) : "—"}</td><td class="num">${diffLow != null ? `+${diffLow.toFixed(1)}%` : "—"}</td></tr>
+        <tr><td>Technical Resistance</td><td><strong>52-Week High</strong></td><td><span class="broker-badge badge-reiterated">Range Ceiling</span></td><td>${high52 != null ? formatPrice(high52) : "—"}</td><td class="num">${diffHigh != null ? `${diffHigh.toFixed(1)}%` : "—"}</td></tr>
+        <tr><td>Active Cycle Volatility</td><td><strong>Sequential Max Gain</strong></td><td><span class="broker-badge badge-upgrade">Current Year</span></td><td>${bestYr != null ? `+${bestYr.toFixed(1)}%` : "—"}</td><td class="num">Year-to-date</td></tr>
+        <tr><td>Peak Historical Cycle</td><td><strong>Sequential Max Gain</strong></td><td><span class="broker-badge badge-upgrade">Historical</span></td><td>${bestAll != null ? `+${bestAll.toFixed(1)}%` : "—"}</td><td class="num">Multi-Year Peak</td></tr>
+      `;
     }
   } else {
     const verdict = r.verdict;
@@ -2812,6 +2866,7 @@ function openSignalReviewModal(review, ticker, companyName) {
     }
 
     // Recommendations distribution
+    if (els.signalDistBar) els.signalDistBar.style.display = "";
     const recs = r.distribution || r.sources?.recommendations || {};
     const strongBuy = recs.strong_buy ?? recs.strongBuy ?? 0;
     const buy = recs.buy ?? 0;
@@ -2826,6 +2881,15 @@ function openSignalReviewModal(review, ticker, companyName) {
     if (els.distSell) els.distSell.style.width = `${((sell / total) * 100).toFixed(1)}%`;
     if (els.distStrongSell) els.distStrongSell.style.width = `${((strongSell / total) * 100).toFixed(1)}%`;
 
+    if (els.signalDistLegend) {
+      els.signalDistLegend.innerHTML = `
+        <span class="legend-item"><span class="legend-dot dist-strong-buy"></span> Strong Buy: <b id="cntStrongBuy">${strongBuy}</b></span>
+        <span class="legend-item"><span class="legend-dot dist-buy"></span> Buy: <b id="cntBuy">${buy}</b></span>
+        <span class="legend-item"><span class="legend-dot dist-hold"></span> Hold: <b id="cntHold">${hold}</b></span>
+        <span class="legend-item"><span class="legend-dot dist-sell"></span> Sell: <b id="cntSell">${sell}</b></span>
+        <span class="legend-item"><span class="legend-dot dist-strong-sell"></span> Strong Sell: <b id="cntStrongSell">${strongSell}</b></span>
+      `;
+    }
     if (els.cntStrongBuy) els.cntStrongBuy.textContent = strongBuy;
     if (els.cntBuy) els.cntBuy.textContent = buy;
     if (els.cntHold) els.cntHold.textContent = hold;
