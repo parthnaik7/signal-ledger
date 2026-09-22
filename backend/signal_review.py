@@ -125,8 +125,63 @@ def compute_unified_rating(
     analyst_count = int(review_data.get("analyst_count") or 0)
     verdict = (review_data.get("verdict") or "UNRATED").upper()
 
-    # If asset has zero analyst coverage and no valuation model (e.g. index ETF):
+    # If asset has zero analyst coverage and no valuation model (e.g. ETF, IBIT):
+    # Derive a Sequential Range Signal from 52-week channel position instead of UNRATED.
     if analyst_count == 0 and verdict == "UNRATED" and not price_targets.get("mean") and not valuation.get("star_rating"):
+        tech = technical_metrics or {}
+        diff_low = tech.get("diff_from_latest_low_pct")
+        diff_high = tech.get("diff_from_latest_high_pct")
+        cur = tech.get("latest_close") or price_targets.get("current")
+        low52 = tech.get("latest_low")
+        high52 = tech.get("latest_high")
+
+        # Compute channel percentile if we have all three prices
+        if cur is not None and low52 is not None and high52 is not None and high52 > low52:
+            range_pct = max(0.0, min(100.0, (cur - low52) / (high52 - low52) * 100.0))
+        else:
+            range_pct = None
+
+        if range_pct is not None:
+            if range_pct <= 25.0:
+                sig = "BUY"
+                composite = 1.5
+                rationale = (
+                    f"No sell-side analyst coverage. Sequential Range Signal: asset is in the "
+                    f"lower {range_pct:.0f}th percentile of its 52-week channel — Support / Accumulation Zone. "
+                    f"Signal derived from 52-Week Range Channel & Sequential Volatility Expansion."
+                )
+            elif range_pct >= 75.0:
+                sig = "HOLD"
+                composite = 0.3
+                rationale = (
+                    f"No sell-side analyst coverage. Sequential Range Signal: asset is in the "
+                    f"upper {range_pct:.0f}th percentile of its 52-week channel — Upper Channel / Momentum. "
+                    f"Signal derived from 52-Week Range Channel & Sequential Volatility Expansion."
+                )
+            else:
+                sig = "HOLD"
+                composite = 0.0
+                rationale = (
+                    f"No sell-side analyst coverage. Sequential Range Signal: asset is at the "
+                    f"{range_pct:.0f}th percentile of its 52-week channel — Mid-Range Consolidation. "
+                    f"Signal derived from 52-Week Range Channel & Sequential Volatility Expansion."
+                )
+            to_high = abs(diff_high) if diff_high is not None else None
+            return {
+                "signal": sig,
+                "confidence": "MEDIUM",
+                "risk_level": "MODERATE",
+                "composite_score": round(composite, 2),
+                "dispersion": 0.5,
+                "pillars": {
+                    "range_channel": round(range_pct, 1),
+                    "pct_from_low": round(diff_low, 1) if diff_low is not None else None,
+                    "pct_from_high": round(to_high, 1) if to_high is not None else None,
+                },
+                "rationale": rationale,
+            }
+
+        # No price data at all — last-resort UNRATED
         return {
             "signal": "UNRATED",
             "confidence": "NONE",
@@ -497,7 +552,33 @@ def fetch_signal_review(
             f"{positives} positive vs {negatives} negative{target_str}{upside_str}."
         )
     else:
-        summary = f"No active Wall Street analyst coverage currently reported for {clean_ticker}."
+        summary = None  # Will be set below after unified rating is computed
+
+    # Build technical_metrics for range-based fallback (used when analyst_count==0)
+    _low52 = info.get("fiftyTwoWeekLow")
+    _high52 = info.get("fiftyTwoWeekHigh")
+    if _low52 is None or _high52 is None:
+        try:
+            fi = getattr(t, "fast_info", None)
+            if fi is not None:
+                _low52 = _low52 or getattr(fi, "year_low", None)
+                _high52 = _high52 or getattr(fi, "year_high", None)
+        except Exception:
+            pass
+    _cur = current_price or info.get("regularMarketPrice") or info.get("previousClose")
+    _tech_metrics: dict = {}
+    if _cur is not None:
+        _tech_metrics["latest_close"] = float(_cur)
+    if _low52 is not None:
+        _low52 = float(_low52)
+        _tech_metrics["latest_low"] = _low52
+        if _cur:
+            _tech_metrics["diff_from_latest_low_pct"] = round(((float(_cur) - _low52) / _low52) * 100.0, 2)
+    if _high52 is not None:
+        _high52 = float(_high52)
+        _tech_metrics["latest_high"] = _high52
+        if _cur:
+            _tech_metrics["diff_from_latest_high_pct"] = round(((float(_cur) - _high52) / _high52) * 100.0, 2)
 
     # Compute unified quantitative rating
     unified = compute_unified_rating({
@@ -519,7 +600,17 @@ def fetch_signal_review(
         },
         "analyst_count": analyst_count,
         "verdict": verdict,
-    })
+    }, technical_metrics=_tech_metrics or None)
+
+    # Finalize summary for uncovered assets now that unified signal is known
+    if summary is None:
+        _sig = unified.get("signal", "HOLD")
+        _rat = unified.get("rationale", "")
+        summary = (
+            f"Sequential Range Signal ({_sig}) for {clean_ticker}. "
+            f"{_rat} "
+            f"No sell-side Wall Street analyst consensus or Refinitiv price targets are published for this asset."
+        )
 
     return {
         "ticker": clean_ticker,
