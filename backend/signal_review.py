@@ -310,6 +310,16 @@ def fetch_signal_review(
         except Exception as exc:
             raise DataFetchError(f"Could not retrieve ticker information for '{clean_ticker}': {exc}") from exc
 
+    if not info or not info.get("recommendationMean") or not info.get("symbol"):
+        from data_source import fetch_universal_quote_data
+        universal = fetch_universal_quote_data(clean_ticker)
+        if universal:
+            if not info:
+                info = {}
+            for k, v in universal.items():
+                if v is not None and (info.get(k) is None or k in ("recommendationMean", "recommendationKey", "numberOfAnalystOpinions", "targetMeanPrice", "targetHighPrice", "targetLowPrice", "targetMedianPrice", "distribution")):
+                    info[k] = v
+
     # Enforce that the ticker actually exists on Yahoo Finance with real market data
     has_valid_info = bool(
         info and (
@@ -368,6 +378,11 @@ def fetch_signal_review(
             calculated_sum = sum(distribution.values())
             if calculated_sum > analyst_count:
                 analyst_count = calculated_sum
+        elif info.get("distribution"):
+            distribution.update(info["distribution"])
+            calculated_sum = sum(distribution.values())
+            if calculated_sum > analyst_count:
+                analyst_count = calculated_sum
     except Exception as exc:
         logger.debug("Could not parse recommendations breakdown for %s: %s", clean_ticker, exc)
 
@@ -387,6 +402,18 @@ def fetch_signal_review(
         price_targets_raw = getattr(t, "analyst_price_targets", None) or {}
     except Exception:
         price_targets_raw = {}
+
+    if not price_targets_raw or not price_targets_raw.get("mean"):
+        mean_tgt = info.get("targetMeanPrice")
+        if mean_tgt is not None:
+            cur_p = info.get("regularMarketPrice") or info.get("currentPrice") or info.get("previousClose")
+            price_targets_raw = {
+                "current": cur_p,
+                "mean": mean_tgt,
+                "median": info.get("targetMedianPrice") or mean_tgt,
+                "high": info.get("targetHighPrice") or mean_tgt,
+                "low": info.get("targetLowPrice") or mean_tgt,
+            }
 
     current_price = (
         price_targets_raw.get("current")

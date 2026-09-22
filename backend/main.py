@@ -46,23 +46,14 @@ from gemini_service import (
 
 app = FastAPI(title="SignalLedger API")
 
-allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "")
+allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "*")
 allowed_origins = [o.strip() for o in allowed_origins_env.split(",") if o.strip()]
 
-# Fail-safe: if ALLOWED_ORIGINS is not set, restrict to production and local dev origins.
-# Set ALLOWED_ORIGINS=* in render.yaml explicitly if broad cross-origin access is required.
-default_origins = [
-    "https://signal-ledger-7u0v.onrender.com",
-    "https://signalledger.onrender.com",
-    "http://localhost:8000",
-    "http://127.0.0.1:8000",
-]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins if allowed_origins else default_origins,
-    allow_origin_regex=r"https://.*\.onrender\.com",
-    allow_methods=["GET", "POST"],
-    allow_headers=["Content-Type", "Accept", "X-Admin-Token"],
+    allow_origins=allowed_origins if allowed_origins else ["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 

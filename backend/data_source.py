@@ -8,6 +8,8 @@ datetime64, everything else as float).
 from __future__ import annotations
 
 import io
+import json
+import re
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -327,6 +329,88 @@ def fetch_similar_stocks(ticker: str) -> list[str]:
     return []
 
 
+
+def _get_raw_or_val(d: Any, key: str, default: Any = None) -> Any:
+    if not isinstance(d, dict):
+        return default
+    v = d.get(key)
+    if isinstance(v, dict):
+        return v.get("raw", default)
+    return v if v is not None else default
+
+
+def fetch_universal_quote_data(ticker: str) -> dict[str, Any]:
+    """
+    Universal fallback that extracts quoteSummary and financialData directly from Yahoo's
+    public web page. Requires NO crumb, NO auth, and works universally across any server
+    environment (local, cloud, datacenter) without hardcoded server dependencies.
+    """
+    clean_sym = ticker.strip().upper()
+    if not clean_sym:
+        return {}
+
+    url = f"https://finance.yahoo.com/quote/{clean_sym}/"
+    try:
+        resp = session_manager.get(url, timeout=6.0)
+        if not resp or getattr(resp, "status_code", 0) != 200:
+            return {}
+        html = resp.text
+        scripts = re.findall(r"<script[^>]*>(.*?)</script>", html, re.DOTALL)
+        found = None
+        for s in scripts:
+            if "quoteSummary" in s and ("recommendationMean" in s or "financialData" in s):
+                try:
+                    wrapper = json.loads(s)
+                    body_str = wrapper.get("body", s)
+                    qs = json.loads(body_str) if isinstance(body_str, str) else wrapper
+                    res = qs.get("quoteSummary", {}).get("result", [])
+                    if res and isinstance(res[0], dict):
+                        found = res[0]
+                        break
+                except Exception:
+                    continue
+
+        if not found:
+            return {}
+
+        fin = found.get("financialData", {})
+        price = found.get("price", {})
+        sd = found.get("summaryDetail", {})
+        trend = found.get("recommendationTrend", {}).get("trend", [])
+
+        dist = {"strong_buy": 0, "buy": 0, "hold": 0, "sell": 0, "strong_sell": 0}
+        if trend and isinstance(trend, list) and len(trend) > 0 and isinstance(trend[0], dict):
+            t0 = trend[0]
+            dist["strong_buy"] = int(t0.get("strongBuy") or 0)
+            dist["buy"] = int(t0.get("buy") or 0)
+            dist["hold"] = int(t0.get("hold") or 0)
+            dist["sell"] = int(t0.get("sell") or 0)
+            dist["strong_sell"] = int(t0.get("strongSell") or 0)
+
+        return {
+            "symbol": clean_sym,
+            "shortName": _get_raw_or_val(price, "shortName"),
+            "longName": _get_raw_or_val(price, "longName"),
+            "regularMarketPrice": _get_raw_or_val(price, "regularMarketPrice"),
+            "previousClose": _get_raw_or_val(sd, "previousClose") or _get_raw_or_val(price, "regularMarketPreviousClose"),
+            "fiftyTwoWeekHigh": _get_raw_or_val(sd, "fiftyTwoWeekHigh"),
+            "fiftyTwoWeekLow": _get_raw_or_val(sd, "fiftyTwoWeekLow"),
+            "dayHigh": _get_raw_or_val(sd, "dayHigh"),
+            "dayLow": _get_raw_or_val(sd, "dayLow"),
+            "marketCap": _get_raw_or_val(sd, "marketCap"),
+            "trailingPE": _get_raw_or_val(sd, "trailingPE"),
+            "recommendationMean": _get_raw_or_val(fin, "recommendationMean"),
+            "recommendationKey": _get_raw_or_val(fin, "recommendationKey"),
+            "numberOfAnalystOpinions": _get_raw_or_val(fin, "numberOfAnalystOpinions"),
+            "targetMeanPrice": _get_raw_or_val(fin, "targetMeanPrice"),
+            "targetHighPrice": _get_raw_or_val(fin, "targetHighPrice"),
+            "targetLowPrice": _get_raw_or_val(fin, "targetLowPrice"),
+            "targetMedianPrice": _get_raw_or_val(fin, "targetMedianPrice"),
+            "distribution": dist,
+        }
+    except Exception:
+        return {}
+
 def fetch_ticker_metadata_bundle(ticker: str) -> dict:
     """
     Consolidated metadata query: fetches ticker info once via the unified session,
@@ -364,6 +448,13 @@ def fetch_ticker_metadata_bundle(ticker: str) -> dict:
                 }
         except Exception:
             pass
+
+    if not info.get("recommendationMean") or not info.get("longName"):
+        universal = fetch_universal_quote_data(clean_sym)
+        if universal:
+            for k, v in universal.items():
+                if v is not None and (info.get(k) is None or k in ("recommendationMean", "recommendationKey", "numberOfAnalystOpinions", "targetMeanPrice", "targetHighPrice", "targetLowPrice", "targetMedianPrice", "distribution")):
+                    info[k] = v
 
     quote_details = fetch_ticker_quote_details(clean_sym, ticker_obj=t, info=info)
     similar_stocks = fetch_similar_stocks(clean_sym)
