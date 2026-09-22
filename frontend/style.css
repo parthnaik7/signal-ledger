@@ -3569,3 +3569,478 @@ body {
   margin: 0;
 }
 
+/* ── Gemini AI Observational Suggestion Module ────────────────────────────── */
+.source-tag-gemini {
+  color: var(--accent-primary, #6366f1) !important;
+  border-color: rgba(99, 102, 241, 0.35) !important;
+  background: rgba(99, 102, 241, 0.08) !important;
+}
+
+.signal-gemini-box {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.04) 0%, rgba(14, 165, 233, 0.03) 100%), var(--bg-card-subtle, rgba(255, 255, 255, 0.02));
+  border: 1px solid rgba(99, 102, 241, 0.26);
+  border-radius: 10px;
+  position: relative;
+  overflow: hidden;
+}
+
+.gemini-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.gemini-sparkle-icon {
+  font-size: 14px;
+}
+
+.gemini-pill-tag {
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(99, 102, 241, 0.12);
+  color: var(--accent-primary, #6366f1);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+}
+
+.gemini-refresh-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 6px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.gemini-refresh-btn:hover {
+  color: var(--accent-primary);
+  border-color: var(--accent-primary);
+  background: var(--bg-hover);
+}
+
+.gemini-unconfigured-msg {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  border-radius: 8px;
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  margin-top: 6px;
+}
+
+.gemini-unconfigured-msg strong {
+  display: block;
+  color: #f59e0b;
+  margin-bottom: 2px;
+  font-size: 12px;
+}
+
+.gemini-unconfigured-msg p {
+  margin: 0;
+  line-height: 1.4;
+}
+
+.gemini-unconfigured-msg code {
+  background: rgba(0, 0, 0, 0.2);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.gemini-loading-state {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px 12px;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.gemini-shimmer-bar {
+  width: 100%;
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, rgba(99, 102, 241, 0.1) 0%, rgba(99, 102, 241, 0.6) 50%, rgba(99, 102, 241, 0.1) 100%);
+  background-size: 200% 100%;
+  animation: geminiShimmer 1.5s infinite linear;
+}
+
+@keyframes geminiShimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.gemini-verdict-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.gemini-signal-badge-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.gemini-signal-badge {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-weight: 800;
+  padding: 3px 12px;
+  border-radius: 6px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.gemini-signal-badge.signal-buy {
+  background: rgba(16, 185, 129, 0.18);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.4);
+}
+
+.gemini-signal-badge.signal-hold {
+  background: rgba(245, 158, 11, 0.18);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.4);
+}
+
+.gemini-signal-badge.signal-sell {
+  background: rgba(239, 68, 68, 0.18);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+}
+
+.gemini-signal-badge.signal-neutral {
+  background: rgba(107, 114, 128, 0.18);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-default);
+}
+
+.gemini-confidence-text {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.gemini-posture-box {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-hover);
+  padding: 3px 9px;
+  border-radius: 6px;
+  border: 1px solid var(--border-subtle);
+}
+
+.gemini-posture-label {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.gemini-posture-val {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.gemini-timing-box,
+.gemini-action-box {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+
+.gemini-box-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--accent-primary, #6366f1);
+  margin-bottom: 4px;
+}
+
+.gemini-timing-text,
+.gemini-action-text {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.gemini-drivers-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+@media (max-width: 600px) {
+  .gemini-drivers-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.gemini-driver-col {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.gemini-col-title {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+}
+
+.gemini-bullet-list {
+  margin: 0;
+  padding-left: 16px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.gemini-risks-list li::marker {
+  color: #ef4444;
+}
+
+.gemini-compliance-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  color: var(--text-muted);
+  line-height: 1.3;
+  padding-top: 6px;
+  border-top: 1px dashed var(--border-subtle);
+}
+
+.gemini-compliance-note svg {
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+/* ── Watchlist Gemini Briefing Card ─────────────────────────────────────── */
+.gemini-action-trigger {
+  color: var(--accent-primary, #6366f1) !important;
+  border-color: rgba(99, 102, 241, 0.35) !important;
+  background: rgba(99, 102, 241, 0.08) !important;
+}
+
+.gemini-action-trigger:hover {
+  background: rgba(99, 102, 241, 0.16) !important;
+}
+
+.wl-gemini-briefing-card {
+  margin: 8px 16px 12px;
+  padding: 14px 16px;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.06) 0%, rgba(14, 165, 233, 0.04) 100%), var(--bg-card);
+  border: 1px solid rgba(99, 102, 241, 0.28);
+  border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  animation: fadeSlideDown 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.wl-gemini-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.wl-gemini-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.wl-gemini-title {
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-primary);
+}
+
+.wl-gemini-sentiment-badge {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 999px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.wl-gemini-sentiment-badge.sentiment-bullish {
+  background: rgba(16, 185, 129, 0.18);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+}
+
+.wl-gemini-sentiment-badge.sentiment-neutral {
+  background: rgba(59, 130, 246, 0.18);
+  color: #3b82f6;
+  border: 1px solid rgba(59, 130, 246, 0.35);
+}
+
+.wl-gemini-sentiment-badge.sentiment-cautious {
+  background: rgba(245, 158, 11, 0.18);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+}
+
+.wl-gemini-sentiment-badge.sentiment-defensive {
+  background: rgba(239, 68, 68, 0.18);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+}
+
+.wl-gemini-overview-text {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  margin: 0 0 12px;
+}
+
+.wl-gemini-focus-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.wl-gemini-focus-card {
+  background: var(--bg-card-subtle, rgba(255, 255, 255, 0.02));
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.wl-gemini-focus-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.wl-gemini-focus-ticker {
+  font-family: var(--font-mono);
+  font-weight: 800;
+  font-size: 13px;
+  color: var(--accent-primary, #6366f1);
+}
+
+.wl-gemini-focus-rating {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.wl-gemini-focus-rating.rating-buy {
+  background: rgba(16, 185, 129, 0.18);
+  color: #10b981;
+}
+
+.wl-gemini-focus-rating.rating-hold,
+.wl-gemini-focus-rating.rating-watch {
+  background: rgba(245, 158, 11, 0.18);
+  color: #f59e0b;
+}
+
+.wl-gemini-focus-rating.rating-trim,
+.wl-gemini-focus-rating.rating-sell {
+  background: rgba(239, 68, 68, 0.18);
+  color: #ef4444;
+}
+
+.wl-gemini-focus-setup {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.wl-gemini-focus-rationale {
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--text-secondary);
+  margin: 2px 0 4px;
+}
+
+.wl-gemini-focus-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 4px;
+  margin-top: 2px;
+}
+
+.wl-gemini-risks-box {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-bottom: 10px;
+}
+
+.wl-gemini-risks-title {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.wl-gemini-actions-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+}
+

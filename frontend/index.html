@@ -233,6 +233,9 @@
             </div>
           </div>
           <input type="file" id="watchlistFileInput" accept=".json,.csv,.txt" hidden aria-hidden="true">
+          <button type="button" id="watchlistGeminiBtn" class="text-btn gemini-action-trigger" title="Generate Gemini AI Market Sentiment & Daily Focus Briefing">
+            <span class="gemini-sparkle-icon">✨</span> AI Briefing
+          </button>
           <button type="button" id="refreshAllWatchlistBtn" class="text-btn" title="Refresh all ticker data">Refresh
             All</button>
           <button type="button" id="clearWatchlistBtn" class="text-btn danger" title="Clear all watchlist items">Clear
@@ -295,6 +298,61 @@
           <div class="wl-progress-fill" id="wlProgressFill" style="width: 0%;"></div>
         </div>
       </div>
+
+      <!-- Gemini Watchlist Market Briefing Card (Collapsible) -->
+      <div class="wl-gemini-briefing-card" id="watchlistGeminiCard" hidden>
+        <div class="wl-gemini-header">
+          <div class="wl-gemini-title-wrap">
+            <span class="gemini-sparkle-icon">✨</span>
+            <span class="wl-gemini-title">Watchlist AI Market Briefing</span>
+            <span class="wl-gemini-sentiment-badge sentiment-neutral" id="wlGeminiSentimentBadge">NEUTRAL</span>
+          </div>
+          <div class="wl-gemini-actions-row">
+            <button type="button" class="gemini-refresh-btn" id="wlGeminiRefreshBtn" title="Refresh Watchlist Briefing">
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+              <span>Refresh</span>
+            </button>
+            <button type="button" class="signal-modal-close" id="wlGeminiCloseBtn" title="Close Briefing" style="font-size: 16px; padding: 0 4px;">&times;</button>
+          </div>
+        </div>
+
+        <!-- Unconfigured state -->
+        <div class="gemini-unconfigured-msg" id="wlGeminiUnconfiguredMsg" hidden>
+          <div class="gemini-unconfigured-icon">⚙️</div>
+          <div class="gemini-unconfigured-content">
+            <strong>Gemini API Key Required</strong>
+            <p>Set <code>GEMINI_API_KEY</code> in your Render Environment Variables to enable watchlist briefings.</p>
+          </div>
+        </div>
+
+        <!-- Loading state -->
+        <div class="gemini-loading-state" id="wlGeminiLoadingState" hidden>
+          <div class="gemini-shimmer-bar"></div>
+          <span>Analyzing portfolio basket momentum, sector risks &amp; focus trades with Gemini...</span>
+        </div>
+
+        <!-- Content state -->
+        <div class="wl-gemini-content" id="wlGeminiContentWrap" hidden>
+          <p class="wl-gemini-overview-text" id="wlGeminiOverviewText">Evaluating watchlist trends...</p>
+
+          <div class="wl-gemini-focus-grid" id="wlGeminiFocusGrid">
+            <!-- Populated via app.js -->
+          </div>
+
+          <div class="wl-gemini-risks-box" id="wlGeminiRisksBox">
+            <span class="wl-gemini-risks-title">Sector / Market Risk Alerts</span>
+            <ul class="gemini-bullet-list gemini-risks-list" id="wlGeminiRisksList">
+              <!-- Populated via app.js -->
+            </ul>
+          </div>
+
+          <div class="gemini-compliance-note">
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+            <span id="wlGeminiDisclaimer">AI-generated watchlist overview for educational and informational purposes only. Not personalized financial advice.</span>
+          </div>
+        </div>
+      </div>
+
       <div class="history-list" id="watchlistItems">
         <!-- Populated via app.js -->
       </div>
@@ -763,6 +821,7 @@
           <span class="source-tag">LSEG Refinitiv</span>
           <span class="source-tag">Yahoo Finance Analyst Consensus</span>
           <span class="source-tag">Morningstar / Fair Value Model</span>
+          <span class="source-tag source-tag-gemini">✨ Gemini AI Research</span>
         </div>
 
         <div class="signal-modal-body">
@@ -773,6 +832,93 @@
               <span class="signal-analyst-count" id="signalAnalystCount">—</span>
             </div>
             <p class="signal-summary-text" id="signalSummaryText">Loading institutional consensus...</p>
+          </div>
+
+          <!-- Gemini AI Observational Suggestion Module -->
+          <div class="signal-section-box signal-gemini-box" id="signalGeminiSection">
+            <div class="signal-section-header">
+              <div class="gemini-header-left">
+                <span class="gemini-sparkle-icon">✨</span>
+                <span class="signal-section-title">Gemini AI Observational Perspective</span>
+                <span class="gemini-pill-tag">AI Opinion · Not Investment Advice</span>
+              </div>
+              <button type="button" class="gemini-refresh-btn" id="geminiRefreshBtn" title="Analyze with Gemini AI">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="23 4 23 10 17 10"></polyline>
+                  <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+                </svg>
+                <span>Analyze</span>
+              </button>
+            </div>
+
+            <!-- Unconfigured state -->
+            <div class="gemini-unconfigured-msg" id="geminiUnconfiguredMsg" hidden>
+              <div class="gemini-unconfigured-icon">⚙️</div>
+              <div class="gemini-unconfigured-content">
+                <strong>Gemini API Key Required</strong>
+                <p>To enable live AI trade suggestions, configure the <code>GEMINI_API_KEY</code> environment variable in your Render dashboard (Settings &rarr; Environment Variables).</p>
+              </div>
+            </div>
+
+            <!-- Loading state -->
+            <div class="gemini-loading-state" id="geminiLoadingState" hidden>
+              <div class="gemini-shimmer-bar"></div>
+              <span>Synthesizing ranges, valuation &amp; consensus with Gemini AI...</span>
+            </div>
+
+            <!-- Content state -->
+            <div class="gemini-content-wrap" id="geminiContentWrap" hidden>
+              <div class="gemini-verdict-row">
+                <div class="gemini-signal-badge-wrap">
+                  <span class="gemini-signal-badge signal-neutral" id="geminiSignalBadge">HOLD</span>
+                  <span class="gemini-confidence-text" id="geminiConfidenceText">Observational Signal</span>
+                </div>
+                <div class="gemini-posture-box">
+                  <span class="gemini-posture-label">Action Posture:</span>
+                  <span class="gemini-posture-val" id="geminiPostureVal">Wait for Confirmation</span>
+                </div>
+              </div>
+
+              <!-- Timing Analysis -->
+              <div class="gemini-timing-box">
+                <div class="gemini-box-label">
+                  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                  <span>Timing Dynamics</span>
+                </div>
+                <p class="gemini-timing-text" id="geminiTimingText">Click 'Analyze' to evaluate why timing matters for this asset.</p>
+              </div>
+
+              <!-- Action Guidance & Qualitative Sizing -->
+              <div class="gemini-action-box">
+                <div class="gemini-box-label">
+                  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                  <span>Action Guidance &amp; Sizing Discipline</span>
+                </div>
+                <p class="gemini-action-text" id="geminiActionText">Qualitative risk perspective only. Never actionable quantities or financial advice.</p>
+              </div>
+
+              <!-- Catalysts and Risks Grid -->
+              <div class="gemini-drivers-grid">
+                <div class="gemini-driver-col">
+                  <span class="gemini-col-title">Key Tailwinds / Drivers</span>
+                  <ul class="gemini-bullet-list" id="geminiDriversList">
+                    <li>Evaluating institutional consensus and technical support...</li>
+                  </ul>
+                </div>
+                <div class="gemini-driver-col">
+                  <span class="gemini-col-title">Risk Headwinds / Invalidation</span>
+                  <ul class="gemini-bullet-list gemini-risks-list" id="geminiRisksList">
+                    <li>Downside breaks of key ranges or valuation compression...</li>
+                  </ul>
+                </div>
+              </div>
+
+              <!-- Compliance disclaimer -->
+              <div class="gemini-compliance-note">
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                <span id="geminiDisclaimerText">AI-generated observational market perspective for educational purposes only. Not personalized financial, investment, or legal advice. Capital is at risk.</span>
+              </div>
+            </div>
           </div>
 
           <!-- Analyst Breakdown Distribution -->

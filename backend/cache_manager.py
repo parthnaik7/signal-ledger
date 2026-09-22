@@ -36,6 +36,7 @@ class CacheTier:
     ANALYSIS = 180.0     # 3 minutes for historical daily range ledgers
     METADATA = 3600.0    # 1 hour for company name, ATH, ATL, similar stocks
     SIGNAL_REVIEW = 1800.0  # 30 minutes for institutional ratings & price targets
+    GEMINI = 1800.0         # 30 minutes for AI research perspectives & briefings
 
 
 class IntelligentCacheManager:

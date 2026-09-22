@@ -36,6 +36,12 @@ from data_source import (
 from export import build_pdf, build_xlsx
 from session_manager import session_manager
 from signal_review import fetch_signal_review
+from gemini_service import (
+    DEFAULT_GEMINI_MODEL,
+    analyze_ticker_with_gemini,
+    analyze_watchlist_with_gemini,
+    is_gemini_configured,
+)
 
 app = FastAPI(title="SignalLedger API")
 
@@ -297,6 +303,70 @@ def get_signal_review(
         response.headers["X-Cache"] = "MISS"
         response.headers["X-Response-Time-Ms"] = str(round((time.time() - start_time) * 1000, 2))
     return review
+
+
+@app.get("/api/gemini/status")
+def gemini_status():
+    """Returns whether GEMINI_API_KEY is configured in the environment and active model name."""
+    return {
+        "configured": is_gemini_configured(),
+        "model": DEFAULT_GEMINI_MODEL,
+    }
+
+
+@app.post("/api/gemini/ticker-suggestion")
+def gemini_ticker_suggestion(
+    payload: dict = Body(...),
+    refresh: bool = Query(False, description="Bypass cache and force fresh AI analysis"),
+):
+    """
+    Generates a safe Gemini-AI research perspective for a single ticker.
+    Adheres to strict compliance guardrails (no personalized advice, no share counts).
+    Cached for fast sub-millisecond response.
+    """
+    ticker = payload.get("ticker", "").strip().upper()
+    if not ticker:
+        raise HTTPException(status_code=400, detail="Missing required 'ticker' field in payload.")
+
+    cache_key = f"gemini:ticker:{ticker}"
+    if not refresh:
+        cached = cache_manager.get(cache_key)
+        if cached is not None:
+            return cached
+
+    result = analyze_ticker_with_gemini(payload)
+    if result.get("success"):
+        cache_manager.set(cache_key, result, ttl_seconds=CacheTier.GEMINI)
+
+    return result
+
+
+@app.post("/api/gemini/watchlist-briefing")
+def gemini_watchlist_briefing(
+    payload: dict = Body(...),
+    refresh: bool = Query(False, description="Bypass cache and force fresh AI briefing"),
+):
+    """
+    Generates a high-level watchlist sentiment briefing, sector risk analysis,
+    and highlighted focus candidates for the session.
+    """
+    watchlist_items = payload.get("watchlist", [])
+    if not isinstance(watchlist_items, list) or not watchlist_items:
+        raise HTTPException(status_code=400, detail="Payload must contain a non-empty 'watchlist' array.")
+
+    tickers_key = ",".join(sorted([item.get("ticker", "").upper() for item in watchlist_items if item.get("ticker")]))
+    cache_key = f"gemini:watchlist:{hash(tickers_key)}"
+
+    if not refresh:
+        cached = cache_manager.get(cache_key)
+        if cached is not None:
+            return cached
+
+    result = analyze_watchlist_with_gemini(watchlist_items)
+    if result.get("success"):
+        cache_manager.set(cache_key, result, ttl_seconds=CacheTier.GEMINI)
+
+    return result
 
 
 @app.get("/api/analyze", response_model=AnalysisResponse)
