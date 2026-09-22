@@ -47,7 +47,7 @@ def fetch_live_quote(ticker: str) -> dict:
         raise DataFetchError("yfinance is not installed on the server.")
 
     try:
-        t = yf.Ticker(ticker.strip().upper(), session=session_manager.get_session())
+        t = session_manager.create_ticker(ticker.strip().upper())
         price = None
         as_of_note = "live quote"
 
@@ -173,7 +173,7 @@ def fetch_ticker_quote_details(
     if yf is None:
         return None
     try:
-        t = ticker_obj or yf.Ticker(ticker.strip().upper(), session=session_manager.get_session())
+        t = ticker_obj or session_manager.create_ticker(ticker.strip().upper())
         if info is None:
             info = t.info or {}
 
@@ -344,11 +344,26 @@ def fetch_ticker_metadata_bundle(ticker: str) -> dict:
         }
 
     try:
-        t = yf.Ticker(clean_sym, session=session_manager.get_session())
-        info = t.info or {}
+        t = session_manager.create_ticker(clean_sym)
+        info = (getattr(t, "info", None) or {}) if t else {}
     except Exception:
         t = None
         info = {}
+
+    if not info and t is not None:
+        try:
+            fi = getattr(t, "fast_info", None)
+            if fi and getattr(fi, "last_price", None) is not None:
+                info = {
+                    "symbol": clean_sym,
+                    "shortName": clean_sym,
+                    "regularMarketPrice": getattr(fi, "last_price", None),
+                    "previousClose": getattr(fi, "previous_close", None),
+                    "fiftyTwoWeekHigh": getattr(fi, "year_high", None),
+                    "fiftyTwoWeekLow": getattr(fi, "year_low", None),
+                }
+        except Exception:
+            pass
 
     quote_details = fetch_ticker_quote_details(clean_sym, ticker_obj=t, info=info)
     similar_stocks = fetch_similar_stocks(clean_sym)

@@ -53,16 +53,31 @@ class UnifiedSessionManager:
         self._created_at: float = 0.0
         self._request_count: int = 0
         self._reset_count: int = 0
+        self._crumb: str | None = None
         self._init_session()
         self._initialized = True
 
     def _seed_yahoo_cookies(self, session: Any) -> None:
-        """Hits fc.yahoo.com to pre-seed the essential 'A3' cookie required by Yahoo Finance."""
+        """Hits fc.yahoo.com to pre-seed cookies and obtains an authenticated crumb for Yahoo Finance."""
         try:
             resp = session.get("https://fc.yahoo.com", timeout=5.0)
             logger.info(f"Yahoo session cookie seeded (status: {resp.status_code}, cookies: {len(session.cookies)}).")
         except Exception as exc:
             logger.warning(f"Could not pre-seed Yahoo cookies via fc.yahoo.com: {exc}")
+
+        # Pre-seed crumb to bypass yfinance client-side rate-limits on cloud hosts
+        for crumb_url in (
+            "https://query1.finance.yahoo.com/v1/test/getcrumb",
+            "https://query2.finance.yahoo.com/v1/test/getcrumb",
+        ):
+            try:
+                c_resp = session.get(crumb_url, timeout=5.0)
+                if c_resp.status_code == 200 and c_resp.text and "<html>" not in c_resp.text and "Too Many" not in c_resp.text:
+                    self._crumb = c_resp.text.strip()
+                    logger.info(f"Yahoo session crumb pre-seeded ({self._crumb[:4]}***).")
+                    break
+            except Exception as c_exc:
+                logger.debug(f"Crumb fetch attempt failed on {crumb_url}: {c_exc}")
 
     def _init_session(self) -> None:
         """Configures a new persistent session with optimized connection pools, headers, and cookies."""
@@ -111,6 +126,37 @@ class UnifiedSessionManager:
         self._is_cffi = False
         self._created_at = time.time()
         logger.info("Unified persistent session initialized using requests.Session fallback.")
+
+    def get_crumb(self) -> str | None:
+        """Returns the pre-seeded Yahoo Finance crumb if available."""
+        with self._session_lock:
+            if not self._crumb and self._session:
+                for crumb_url in (
+                    "https://query1.finance.yahoo.com/v1/test/getcrumb",
+                    "https://query2.finance.yahoo.com/v1/test/getcrumb",
+                ):
+                    try:
+                        c_resp = self._session.get(crumb_url, timeout=5.0)
+                        if c_resp.status_code == 200 and c_resp.text and "<html>" not in c_resp.text and "Too Many" not in c_resp.text:
+                            self._crumb = c_resp.text.strip()
+                            break
+                    except Exception:
+                        pass
+            return self._crumb
+
+    def create_ticker(self, ticker: str) -> Any:
+        """Creates a yf.Ticker instance configured with pooled session and pre-seeded crumb."""
+        clean_sym = ticker.strip().upper()
+        try:
+            import yfinance as yf
+            t = yf.Ticker(clean_sym, session=self.get_session())
+            crumb = self.get_crumb()
+            if crumb and hasattr(t, "_data") and t._data is not None:
+                t._data._crumb = crumb
+            return t
+        except Exception as exc:
+            logger.debug(f"create_ticker failed for {clean_sym}: {exc}")
+            return None
 
     def get_session(self) -> Any:
         """Returns the underlying pooled persistent session (compatible with yfinance)."""

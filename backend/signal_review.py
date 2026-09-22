@@ -299,7 +299,7 @@ def fetch_signal_review(
     t = ticker_obj
     if t is None:
         try:
-            t = yf.Ticker(clean_ticker, session=session_manager.get_session())
+            t = session_manager.create_ticker(clean_ticker)
         except Exception as exc:
             raise DataFetchError(f"Could not reach Yahoo Finance for '{clean_ticker}': {exc}") from exc
 
@@ -320,6 +320,23 @@ def fetch_signal_review(
             or info.get("longName")
         )
     )
+    if not has_valid_info and t is not None:
+        try:
+            fi = getattr(t, "fast_info", None)
+            if fi is not None:
+                last_p = getattr(fi, "last_price", None)
+                if isinstance(last_p, (int, float)) and last_p > 0:
+                    has_valid_info = True
+                    if not info:
+                        prev_c = getattr(fi, "previous_close", None)
+                        info = {
+                            "symbol": clean_ticker,
+                            "regularMarketPrice": last_p,
+                            "previousClose": prev_c if isinstance(prev_c, (int, float)) else None,
+                        }
+        except Exception:
+            pass
+
     if not has_valid_info:
         raise DataFetchError(f"No market data or quote found for symbol '{clean_ticker}'. Check that the symbol is correct.")
 
