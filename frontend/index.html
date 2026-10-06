@@ -382,49 +382,104 @@
                 <span class="wl-gemini-opp-disclaimer">Informational only · Not investment advice</span>
               </div>
               <div class="wl-gemini-opp-header-actions">
-                <button type="button" class="wl-gemini-opp-ctrl-btn" id="wlGeminiOppFilterToggle" title="Filter opportunities" aria-expanded="false" aria-controls="wlGeminiOppFiltersPanel">
-                  <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>
-                  <span>Filters</span>
-                  <span class="wl-opp-filter-badge" id="wlGeminiOppFilterBadge" hidden>0</span>
-                </button>
-                <button type="button" class="wl-gemini-opp-ctrl-btn" id="wlGeminiOppRefreshBtn" title="Refresh market opportunities">
+                <button type="button" class="wl-gemini-opp-ctrl-btn" id="wlGeminiOppRefreshBtn" title="Refresh market opportunities" aria-label="Refresh market opportunities">
                   <svg class="wl-opp-refresh-icon" viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
                   <span>Refresh</span>
                 </button>
               </div>
             </div>
 
-            <!-- Collapsible Compact Filters Panel -->
-            <div class="wl-gemini-opp-filters-panel" id="wlGeminiOppFiltersPanel" hidden>
-              <div class="wl-opp-filters-inner">
-                <div class="wl-opp-filter-row">
-                  <span class="wl-opp-filter-label">Risk</span>
-                  <div class="wl-opp-chip-group" data-filter-group="risk">
-                    <button type="button" class="wl-opp-chip" data-value="LOW" aria-pressed="false">Low</button>
-                    <button type="button" class="wl-opp-chip" data-value="MODERATE" aria-pressed="false">Moderate</button>
-                    <button type="button" class="wl-opp-chip" data-value="HIGH" aria-pressed="false">High</button>
-                  </div>
+            <!-- Always-Visible Inline Filters Panel -->
+            <div class="wl-gemini-opp-filters-panel" id="wlGeminiOppFiltersPanel" role="region" aria-label="Market Opportunities Filters">
+              <div class="wl-opp-filters-card">
+                <div class="wl-opp-groups-row">
+                  <!-- Risk Filter Group -->
+                  <fieldset class="wl-opp-group" data-filter-group="risk">
+                    <legend class="wl-opp-legend">
+                      <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                      <span>Risk</span>
+                    </legend>
+                    <div class="wl-opp-chips">
+                      <button type="button" class="wl-opp-chip" data-group="risk" data-value="Low" aria-pressed="false">
+                        <span class="wl-opp-chip-check" aria-hidden="true"><svg viewBox="0 0 16 16" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 8.5 6.5 12 13 4"></polyline></svg></span>
+                        <span class="wl-opp-chip-text">LOW</span>
+                      </button>
+                      <button type="button" class="wl-opp-chip" data-group="risk" data-value="Moderate" aria-pressed="false">
+                        <span class="wl-opp-chip-check" aria-hidden="true"><svg viewBox="0 0 16 16" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 8.5 6.5 12 13 4"></polyline></svg></span>
+                        <span class="wl-opp-chip-text">MOD</span>
+                      </button>
+                      <button type="button" class="wl-opp-chip" data-group="risk" data-value="High" aria-pressed="false">
+                        <span class="wl-opp-chip-check" aria-hidden="true"><svg viewBox="0 0 16 16" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 8.5 6.5 12 13 4"></polyline></svg></span>
+                        <span class="wl-opp-chip-text">HIGH</span>
+                      </button>
+                    </div>
+                  </fieldset>
+
+                  <!-- Confidence Filter Group -->
+                  <fieldset class="wl-opp-group" data-filter-group="confidence">
+                    <legend class="wl-opp-legend">
+                      <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+                      <span>Confidence</span>
+                    </legend>
+                    <div class="wl-opp-chips">
+                      <button type="button" class="wl-opp-chip" data-group="confidence" data-value="High" aria-pressed="false">
+                        <span class="wl-opp-chip-check" aria-hidden="true"><svg viewBox="0 0 16 16" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 8.5 6.5 12 13 4"></polyline></svg></span>
+                        <span class="wl-opp-chip-text">HIGH</span>
+                      </button>
+                      <button type="button" class="wl-opp-chip" data-group="confidence" data-value="Medium" aria-pressed="false">
+                        <span class="wl-opp-chip-check" aria-hidden="true"><svg viewBox="0 0 16 16" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 8.5 6.5 12 13 4"></polyline></svg></span>
+                        <span class="wl-opp-chip-text">MED</span>
+                      </button>
+                      <button type="button" class="wl-opp-chip" data-group="confidence" data-value="Low" aria-pressed="false">
+                        <span class="wl-opp-chip-check" aria-hidden="true"><svg viewBox="0 0 16 16" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 8.5 6.5 12 13 4"></polyline></svg></span>
+                        <span class="wl-opp-chip-text">LOW</span>
+                      </button>
+                    </div>
+                  </fieldset>
+
+                  <!-- Rating Filter Group -->
+                  <fieldset class="wl-opp-group" data-filter-group="rating">
+                    <legend class="wl-opp-legend">
+                      <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path></svg>
+                      <span>Rating</span>
+                    </legend>
+                    <div class="wl-opp-chips">
+                      <button type="button" class="wl-opp-chip" data-group="rating" data-value="Buy" aria-pressed="false">
+                        <span class="wl-opp-chip-check" aria-hidden="true"><svg viewBox="0 0 16 16" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 8.5 6.5 12 13 4"></polyline></svg></span>
+                        <span class="wl-opp-chip-text">BUY</span>
+                      </button>
+                      <button type="button" class="wl-opp-chip" data-group="rating" data-value="Hold" aria-pressed="false">
+                        <span class="wl-opp-chip-check" aria-hidden="true"><svg viewBox="0 0 16 16" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 8.5 6.5 12 13 4"></polyline></svg></span>
+                        <span class="wl-opp-chip-text">HOLD</span>
+                      </button>
+                      <button type="button" class="wl-opp-chip" data-group="rating" data-value="Sell" aria-pressed="false">
+                        <span class="wl-opp-chip-check" aria-hidden="true"><svg viewBox="0 0 16 16" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 8.5 6.5 12 13 4"></polyline></svg></span>
+                        <span class="wl-opp-chip-text">SELL</span>
+                      </button>
+                    </div>
+                  </fieldset>
                 </div>
-                <div class="wl-opp-filter-row">
-                  <span class="wl-opp-filter-label">Confidence</span>
-                  <div class="wl-opp-chip-group" data-filter-group="confidence">
-                    <button type="button" class="wl-opp-chip" data-value="HIGH" aria-pressed="false">High</button>
-                    <button type="button" class="wl-opp-chip" data-value="MEDIUM" aria-pressed="false">Medium</button>
-                    <button type="button" class="wl-opp-chip" data-value="LOW" aria-pressed="false">Low</button>
-                  </div>
-                </div>
-                <div class="wl-opp-filter-row">
-                  <span class="wl-opp-filter-label">Rating</span>
-                  <div class="wl-opp-chip-group" data-filter-group="rating">
-                    <button type="button" class="wl-opp-chip" data-value="BUY" aria-pressed="false">Buy</button>
-                    <button type="button" class="wl-opp-chip" data-value="HOLD" aria-pressed="false">Hold</button>
-                    <button type="button" class="wl-opp-chip" data-value="SELL" aria-pressed="false">Sell</button>
-                  </div>
-                </div>
-                <div class="wl-opp-filter-actions">
-                  <button type="button" class="wl-opp-clear-link" id="wlGeminiOppClearFiltersBtn" hidden>Clear filters</button>
+
+                <div class="wl-opp-panel-actions">
+                  <button type="button" class="wl-opp-btn-apply" id="wlGeminiOppApplyBtn" disabled>
+                    <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    <span class="wl-opp-btn-apply-label">Apply Filters</span>
+                  </button>
+                  <button type="button" class="wl-opp-btn-reset" id="wlGeminiOppResetBtn" title="Reset all filters">
+                    <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>
+                    <span>Reset</span>
+                  </button>
                 </div>
               </div>
+            </div>
+
+            <!-- Results Summary & Removable Applied Chips Line -->
+            <div class="wl-opp-results-bar" id="wlGeminiOppResultsBar" aria-live="polite">
+              <div class="wl-opp-results-left">
+                <span class="wl-opp-results-indicator"></span>
+                <span class="wl-opp-results-text" id="wlGeminiOppResultsCount">Showing 0 of 0 opportunities</span>
+              </div>
+              <div class="wl-opp-active-chips" id="wlGeminiOppActiveChips"></div>
             </div>
 
             <!-- Opportunities loading state -->
@@ -435,9 +490,9 @@
 
             <!-- Empty state when 0 matches -->
             <div class="wl-gemini-opp-empty" id="wlGeminiOppEmpty" hidden>
-              <p class="wl-gemini-opp-empty-msg">No matches for selected filters</p>
+              <p class="wl-gemini-opp-empty-msg" id="wlGeminiOppEmptyMsg">No opportunities match the selected filters.</p>
               <div class="wl-gemini-opp-empty-actions">
-                <button type="button" class="wl-gemini-opp-btn-text" id="wlGeminiOppEmptyClearBtn">Clear filters</button>
+                <button type="button" class="wl-gemini-opp-btn-text" id="wlGeminiOppEmptyResetBtn">Reset filters</button>
                 <span class="wl-opp-empty-sep">·</span>
                 <button type="button" class="wl-gemini-opp-btn-text" id="wlGeminiOppEmptyRefreshBtn">Refresh anyway</button>
               </div>
@@ -1201,6 +1256,7 @@
 
   </div>
 
+  <script src="opportunityFilters.js"></script>
   <script src="app.js"></script>
 </body>
 

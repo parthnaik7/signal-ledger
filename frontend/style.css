@@ -4458,103 +4458,367 @@ body {
   line-height: 1;
 }
 
-/* Collapsible Filters Panel */
+/* Always-Visible Inline Filters Panel — Terminal Cohesive Style */
 .wl-gemini-opp-filters-panel {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-subtle);
-  border-radius: 6px;
-  padding: 8px 10px;
+  background: var(--bg-card-raised);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
   margin-bottom: 9px;
-  animation: wl-opp-slide-down 0.18s ease-out;
+  box-sizing: border-box;
+  box-shadow: var(--shadow-sm);
 }
 
-@keyframes wl-opp-slide-down {
-  from {
-    opacity: 0;
-    transform: translateY(-4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+.wl-opp-filters-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
 }
 
-.wl-opp-filters-inner {
+.wl-opp-groups-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+}
+
+.wl-opp-group {
+  margin: 0;
+  padding: 0;
+  border: none;
   display: flex;
   flex-direction: column;
   gap: 5px;
 }
 
-.wl-opp-filter-row {
+/* Subtle vertical divider between groups on desktop */
+@media (min-width: 769px) {
+  .wl-opp-group:not(:last-child) {
+    border-right: 1px solid var(--border-subtle);
+    padding-right: 16px;
+  }
+}
+
+.wl-opp-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-sans);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  padding: 0;
+  margin-bottom: 1px;
+}
+
+.wl-opp-legend svg {
+  color: var(--text-muted);
+  opacity: 0.8;
+}
+
+.wl-opp-chips {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 5px;
   flex-wrap: wrap;
 }
 
-.wl-opp-filter-label {
-  font-size: 9.5px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text-muted);
-  width: 68px;
-  flex-shrink: 0;
-}
-
-.wl-opp-chip-group {
-  display: flex;
+/* Chips / Toggle Buttons — Cohesive Terminal Grade Style */
+.wl-opp-chip {
+  display: inline-flex;
   align-items: center;
   gap: 4px;
-  flex-wrap: wrap;
-}
-
-.wl-opp-chip {
-  font-size: 9.5px;
-  font-weight: 500;
-  padding: 2px 7px;
-  border-radius: 12px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 3px 8px;
+  min-height: 26px;
+  border-radius: var(--radius-xs);
   border: 1px solid var(--border-subtle);
   background: var(--bg-card);
   color: var(--text-secondary);
   cursor: pointer;
-  transition: all 0.15s ease;
-  line-height: 1.3;
+  user-select: none;
+  transition: all var(--transition-fast);
+  line-height: 1.2;
 }
 
 .wl-opp-chip:hover {
-  background: var(--bg-hover, rgba(255, 255, 255, 0.06));
-  border-color: var(--border-strong, rgba(255, 255, 255, 0.18));
+  background: var(--bg-hover);
+  border-color: var(--border-default);
+  color: var(--text-primary);
+  transform: translateY(-1px);
+}
+
+.wl-opp-chip:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 1px;
+}
+
+.wl-opp-chip:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Checkmark indicator inside chip */
+.wl-opp-chip-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 10px;
+  height: 10px;
+  opacity: 0;
+  transform: scale(0.5);
+  transition: opacity var(--transition-fast), transform var(--transition-fast);
+}
+
+.wl-opp-chip[aria-pressed="true"] .wl-opp-chip-check {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* Selected state with semantic color accents matching SignalLedger tokens */
+.wl-opp-chip[aria-pressed="true"] {
+  font-weight: 700;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+/* Risk semantic accents */
+.wl-opp-chip[data-group="risk"][data-value="Low"][aria-pressed="true"] {
+  background: rgba(16, 185, 129, 0.14);
+  border-color: #10B981;
+  color: #34D399;
+}
+.wl-opp-chip[data-group="risk"][data-value="Moderate"][aria-pressed="true"] {
+  background: rgba(245, 158, 11, 0.14);
+  border-color: #F59E0B;
+  color: #FBBF24;
+}
+.wl-opp-chip[data-group="risk"][data-value="High"][aria-pressed="true"] {
+  background: rgba(239, 68, 68, 0.14);
+  border-color: #EF4444;
+  color: #F87171;
+}
+
+/* Confidence semantic accents */
+.wl-opp-chip[data-group="confidence"][data-value="High"][aria-pressed="true"] {
+  background: rgba(16, 185, 129, 0.14);
+  border-color: #10B981;
+  color: #34D399;
+}
+.wl-opp-chip[data-group="confidence"][data-value="Medium"][aria-pressed="true"] {
+  background: rgba(59, 130, 246, 0.14);
+  border-color: #3B82F6;
+  color: #60A5FA;
+}
+.wl-opp-chip[data-group="confidence"][data-value="Low"][aria-pressed="true"] {
+  background: rgba(148, 163, 184, 0.14);
+  border-color: #94A3B8;
+  color: #CBD5E1;
+}
+
+/* Rating semantic accents */
+.wl-opp-chip[data-group="rating"][data-value="Buy"][aria-pressed="true"] {
+  background: rgba(16, 185, 129, 0.14);
+  border-color: #10B981;
+  color: #34D399;
+}
+.wl-opp-chip[data-group="rating"][data-value="Hold"][aria-pressed="true"] {
+  background: rgba(245, 158, 11, 0.14);
+  border-color: #F59E0B;
+  color: #FBBF24;
+}
+.wl-opp-chip[data-group="rating"][data-value="Sell"][aria-pressed="true"] {
+  background: rgba(239, 68, 68, 0.14);
+  border-color: #EF4444;
+  color: #F87171;
+}
+
+/* Filter Action Buttons */
+.wl-opp-panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.wl-opp-btn-apply {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 5px 12px;
+  min-height: 28px;
+  border-radius: var(--radius-xs);
+  background: var(--accent-primary);
+  color: #FFFFFF;
+  border: 1px solid var(--accent-primary);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+
+.wl-opp-btn-apply:hover:not(:disabled) {
+  background: var(--accent-primary-hover);
+  border-color: var(--accent-primary-hover);
+  transform: translateY(-1px);
+}
+
+.wl-opp-btn-apply.is-dirty {
+  box-shadow: 0 0 10px var(--accent-glow);
+}
+
+.wl-opp-btn-apply:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 1px;
+}
+
+.wl-opp-btn-apply:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.wl-opp-btn-reset {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 5px 10px;
+  min-height: 28px;
+  border-radius: var(--radius-xs);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+
+.wl-opp-btn-reset:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-default);
   color: var(--text-primary);
 }
 
-.wl-opp-chip.is-active,
-.wl-opp-chip[aria-pressed="true"] {
-  background: rgba(59, 130, 246, 0.18);
-  border-color: rgba(59, 130, 246, 0.5);
-  color: #60a5fa;
-  font-weight: 600;
+.wl-opp-btn-reset:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 1px;
 }
 
-.wl-opp-filter-actions {
+/* Results Bar: Telemetry Indicator & Removable Applied Badges */
+.wl-opp-results-bar {
   display: flex;
-  justify-content: flex-end;
-  padding-top: 2px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 3px 2px 8px;
+  font-size: 11px;
 }
 
-.wl-opp-clear-link {
-  font-size: 9.5px;
+.wl-opp-results-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.wl-opp-results-indicator {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--accent-primary);
+  box-shadow: 0 0 6px var(--accent-glow);
+}
+
+.wl-opp-results-text {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
   color: var(--text-muted);
+  letter-spacing: 0.01em;
+}
+
+.wl-opp-active-chips {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.wl-opp-active-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.wl-opp-active-chip-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: none;
   border: none;
+  padding: 0;
+  margin: 0;
+  color: inherit;
+  opacity: 0.7;
   cursor: pointer;
-  text-decoration: underline;
-  padding: 2px 4px;
-  transition: color 0.15s ease;
+  font-size: 12px;
+  line-height: 1;
+  border-radius: 2px;
+  width: 12px;
+  height: 12px;
+  transition: all var(--transition-fast);
 }
 
-.wl-opp-clear-link:hover {
-  color: #ef4444;
+.wl-opp-active-chip-remove:hover {
+  opacity: 1;
+  color: #EF4444;
+  background: rgba(239, 68, 68, 0.15);
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+  .wl-opp-filters-card {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .wl-opp-panel-actions {
+    width: 100%;
+    margin-left: 0;
+    padding-top: 4px;
+  }
+
+  .wl-opp-btn-apply {
+    flex: 1;
+    min-height: 44px;
+  }
+
+  .wl-opp-btn-reset {
+    min-height: 44px;
+    padding: 0 14px;
+  }
+
+  .wl-opp-chip {
+    min-height: 44px;
+    padding: 8px 12px;
+  }
 }
 
 /* Loading & Empty States */

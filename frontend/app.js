@@ -177,13 +177,16 @@ const els = {
   wlGeminiOpportunitiesBox: document.getElementById("wlGeminiOpportunitiesBox"),
   wlGeminiOppList: document.getElementById("wlGeminiOppList"),
   wlGeminiOppRefreshBtn: document.getElementById("wlGeminiOppRefreshBtn"),
-  wlGeminiOppFilterToggle: document.getElementById("wlGeminiOppFilterToggle"),
-  wlGeminiOppFilterBadge: document.getElementById("wlGeminiOppFilterBadge"),
   wlGeminiOppFiltersPanel: document.getElementById("wlGeminiOppFiltersPanel"),
-  wlGeminiOppClearFiltersBtn: document.getElementById("wlGeminiOppClearFiltersBtn"),
+  wlGeminiOppApplyBtn: document.getElementById("wlGeminiOppApplyBtn"),
+  wlGeminiOppResetBtn: document.getElementById("wlGeminiOppResetBtn"),
+  wlGeminiOppResultsBar: document.getElementById("wlGeminiOppResultsBar"),
+  wlGeminiOppResultsCount: document.getElementById("wlGeminiOppResultsCount"),
+  wlGeminiOppActiveChips: document.getElementById("wlGeminiOppActiveChips"),
   wlGeminiOppLoading: document.getElementById("wlGeminiOppLoading"),
   wlGeminiOppEmpty: document.getElementById("wlGeminiOppEmpty"),
-  wlGeminiOppEmptyClearBtn: document.getElementById("wlGeminiOppEmptyClearBtn"),
+  wlGeminiOppEmptyMsg: document.getElementById("wlGeminiOppEmptyMsg"),
+  wlGeminiOppEmptyResetBtn: document.getElementById("wlGeminiOppEmptyResetBtn"),
   wlGeminiOppEmptyRefreshBtn: document.getElementById("wlGeminiOppEmptyRefreshBtn"),
   wlGeminiDisclaimer: document.getElementById("wlGeminiDisclaimer"),
 };
@@ -3278,6 +3281,15 @@ const SESSION_OPP_FILTERS_KEY = "signalLedger_oppFilters";
 
 function getStoredOppFilters() {
   try {
+    if (window.OpportunityFilters && typeof window.OpportunityFilters.parseFiltersFromQueryString === "function") {
+      const fromUrl = window.OpportunityFilters.parseFiltersFromQueryString(window.location.search);
+      if (window.OpportunityFilters.countSelectedFilters(fromUrl) > 0) {
+        return fromUrl;
+      }
+    }
+  } catch (_) {}
+
+  try {
     const raw = sessionStorage.getItem(SESSION_OPP_FILTERS_KEY);
     if (raw) {
       const p = JSON.parse(raw);
@@ -3288,70 +3300,151 @@ function getStoredOppFilters() {
       };
     }
   } catch (_) {}
-  return { risk: [], confidence: [], rating: [] };
+  return window.OpportunityFilters ? window.OpportunityFilters.createInitialFilterState() : { risk: [], confidence: [], rating: [] };
 }
 
-function setStoredOppFilters(filters) {
+function persistOppFilters(filters) {
   try {
     sessionStorage.setItem(SESSION_OPP_FILTERS_KEY, JSON.stringify(filters));
   } catch (_) {}
+
+  try {
+    const url = new URL(window.location.href);
+    if (window.OpportunityFilters && typeof window.OpportunityFilters.serializeFiltersToQueryString === "function") {
+      const qs = window.OpportunityFilters.serializeFiltersToQueryString(filters);
+      const params = new URLSearchParams(qs);
+      ["opp_risk", "opp_confidence", "opp_conf", "opp_rating"].forEach((k) => url.searchParams.delete(k));
+      for (const [k, v] of params.entries()) {
+        url.searchParams.set(k, v);
+      }
+      window.history.replaceState({}, "", url.toString());
+    }
+  } catch (_) {}
 }
 
-let oppFilters = getStoredOppFilters();
+let appliedOppFilters = getStoredOppFilters();
+let pendingOppFilters = window.OpportunityFilters ? window.OpportunityFilters.cloneFilterState(appliedOppFilters) : { ...appliedOppFilters };
 let allMarketOpportunitiesPool = [];
 let isOppRefreshing = false;
+let oppFetchAbortController = null;
 
 function matchesOppFilters(opp, filters) {
-  if (!opp) return false;
-  const oppRisk = (opp.risk_level || "MODERATE").toUpperCase();
-  const oppConf = (opp.confidence || "MEDIUM").toUpperCase().replace("MODERATE", "MEDIUM");
-  const oppRating = (opp.rating || "BUY").toUpperCase();
-
-  if (filters.risk && filters.risk.length > 0) {
-    if (!filters.risk.includes(oppRisk)) return false;
-  }
-  if (filters.confidence && filters.confidence.length > 0) {
-    if (!filters.confidence.includes(oppConf)) return false;
-  }
-  if (filters.rating && filters.rating.length > 0) {
-    const normalized = oppRating === "WATCH" ? "HOLD" : oppRating;
-    if (!filters.rating.includes(oppRating) && !filters.rating.includes(normalized)) return false;
+  if (window.OpportunityFilters && typeof window.OpportunityFilters.matchesFilters === "function") {
+    return window.OpportunityFilters.matchesFilters(opp, filters);
   }
   return true;
+}
+
+function renderOppResultsBar() {
+  if (!els.wlGeminiOppResultsCount) return;
+  const filtered = window.OpportunityFilters
+    ? window.OpportunityFilters.filterOpportunities(allMarketOpportunitiesPool, appliedOppFilters)
+    : allMarketOpportunitiesPool;
+  const total = allMarketOpportunitiesPool.length;
+  els.wlGeminiOppResultsCount.textContent = `Showing ${filtered.length} of ${total} opportunities`;
+
+  if (els.wlGeminiOppActiveChips) {
+    const activeChipsHtml = [];
+    const groups = ["risk", "confidence", "rating"];
+    groups.forEach((group) => {
+      const vals = appliedOppFilters[group] || [];
+      vals.forEach((v) => {
+        let tagClass = "wl-gemini-tag ";
+        let displayLabel = v.toUpperCase();
+        if (group === "risk") {
+          tagClass += `wl-gemini-tag-risk risk-${v.toLowerCase()}`;
+          displayLabel = `Risk: <strong>${v.toUpperCase()}</strong>`;
+        } else if (group === "confidence") {
+          tagClass += `wl-gemini-tag-conf conf-${v.toLowerCase()}`;
+          displayLabel = `Conf: <strong>${v.toUpperCase()}</strong>`;
+        } else if (group === "rating") {
+          tagClass += `wl-gemini-tag-rating rating-${v.toLowerCase()}`;
+          displayLabel = `Rating: <strong>${v.toUpperCase()}</strong>`;
+        }
+
+        activeChipsHtml.push(`
+          <span class="${tagClass} wl-opp-active-chip" data-group="${escapeHtml(group)}" data-value="${escapeHtml(v)}">
+            <span>${displayLabel}</span>
+            <button type="button" class="wl-opp-active-chip-remove" data-group="${escapeHtml(group)}" data-value="${escapeHtml(v)}" aria-label="Remove filter" title="Remove filter">&times;</button>
+          </span>
+        `);
+      });
+    });
+    els.wlGeminiOppActiveChips.innerHTML = activeChipsHtml.join("");
+
+    els.wlGeminiOppActiveChips.querySelectorAll(".wl-opp-active-chip-remove").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        const grp = btn.dataset.group;
+        const val = btn.dataset.value;
+        if (!grp || !val) return;
+        if (window.OpportunityFilters) {
+          appliedOppFilters = window.OpportunityFilters.removeFilterOption(appliedOppFilters, grp, val);
+          pendingOppFilters = window.OpportunityFilters.cloneFilterState(appliedOppFilters);
+        }
+        persistOppFilters(appliedOppFilters);
+        updateOppFilterUIState();
+        const nextFiltered = window.OpportunityFilters
+          ? window.OpportunityFilters.filterOpportunities(allMarketOpportunitiesPool, appliedOppFilters)
+          : allMarketOpportunitiesPool;
+        renderMarketOpportunitiesList(nextFiltered);
+      });
+    });
+  }
 }
 
 function updateOppFilterUIState() {
   if (els.wlGeminiOppFiltersPanel) {
     const chips = els.wlGeminiOppFiltersPanel.querySelectorAll(".wl-opp-chip");
     chips.forEach((chip) => {
-      const group = chip.closest(".wl-opp-chip-group")?.getAttribute("data-filter-group");
-      const val = chip.getAttribute("data-value");
-      const active = group && val && oppFilters[group] && oppFilters[group].includes(val);
-      chip.classList.toggle("is-active", !!active);
-      chip.setAttribute("aria-pressed", active ? "true" : "false");
+      const group = chip.dataset.group;
+      const val = chip.dataset.value;
+      const isSelected = !!(group && val && pendingOppFilters[group]?.includes(val));
+      chip.classList.toggle("is-active", isSelected);
+      chip.setAttribute("aria-pressed", isSelected ? "true" : "false");
     });
   }
 
-  const activeCount = (oppFilters.risk?.length || 0) + (oppFilters.confidence?.length || 0) + (oppFilters.rating?.length || 0);
-  if (els.wlGeminiOppFilterBadge) {
-    els.wlGeminiOppFilterBadge.textContent = String(activeCount);
-    els.wlGeminiOppFilterBadge.hidden = activeCount === 0;
+  // Update Apply Filters button
+  if (els.wlGeminiOppApplyBtn) {
+    const isDirty = window.OpportunityFilters
+      ? !window.OpportunityFilters.areFiltersEqual(pendingOppFilters, appliedOppFilters)
+      : false;
+    els.wlGeminiOppApplyBtn.disabled = !isDirty;
+    els.wlGeminiOppApplyBtn.classList.toggle("is-dirty", isDirty);
+
+    const pendingCount = window.OpportunityFilters
+      ? window.OpportunityFilters.countSelectedFilters(pendingOppFilters)
+      : 0;
+    const labelSpan = els.wlGeminiOppApplyBtn.querySelector(".wl-opp-btn-apply-label");
+    const labelText = pendingCount > 0 ? `Apply Filters (${pendingCount})` : "Apply Filters";
+    if (labelSpan) {
+      labelSpan.textContent = labelText;
+    } else {
+      els.wlGeminiOppApplyBtn.textContent = labelText;
+    }
   }
-  if (els.wlGeminiOppClearFiltersBtn) {
-    els.wlGeminiOppClearFiltersBtn.hidden = activeCount === 0;
-  }
-  if (els.wlGeminiOppFilterToggle) {
-    els.wlGeminiOppFilterToggle.classList.toggle("is-active", activeCount > 0);
-  }
+
+  renderOppResultsBar();
 }
 
 function renderMarketOpportunitiesList(opps) {
   if (!els.wlGeminiOpportunitiesBox || !els.wlGeminiOppList) return;
 
+  renderOppResultsBar();
+
   if (!opps || opps.length === 0) {
     els.wlGeminiOppList.innerHTML = "";
     els.wlGeminiOppList.hidden = true;
-    if (els.wlGeminiOppEmpty) els.wlGeminiOppEmpty.hidden = false;
+    if (els.wlGeminiOppEmpty) {
+      els.wlGeminiOppEmpty.hidden = false;
+      const count = window.OpportunityFilters ? window.OpportunityFilters.countSelectedFilters(appliedOppFilters) : 0;
+      if (els.wlGeminiOppEmptyMsg) {
+        els.wlGeminiOppEmptyMsg.textContent = count > 0
+          ? "No opportunities match the selected filters."
+          : "No market opportunities available right now.";
+      }
+    }
     return;
   }
 
@@ -3359,9 +3452,15 @@ function renderMarketOpportunitiesList(opps) {
   els.wlGeminiOppList.hidden = false;
 
   els.wlGeminiOppList.innerHTML = opps.map((o) => {
-    const confGrade = (o.confidence || "MEDIUM").toUpperCase().replace("MODERATE", "MEDIUM");
-    const risk = (o.risk_level || "MODERATE").toUpperCase();
-    const rating = (o.rating || "BUY").toUpperCase();
+    const confGrade = window.OpportunityFilters
+      ? window.OpportunityFilters.normalizeConfidence(o.confidence)
+      : (o.confidence || "Medium");
+    const risk = window.OpportunityFilters
+      ? window.OpportunityFilters.normalizeRisk(o.risk_level)
+      : (o.risk_level || "Moderate");
+    const rating = window.OpportunityFilters
+      ? window.OpportunityFilters.normalizeRating(o.rating)
+      : (o.rating || "Buy");
     const sym = escapeHtml(o.ticker || "—");
     const rawSym = (o.ticker || "").toUpperCase();
     const watchlisted = isWatchlisted(rawSym);
@@ -3433,6 +3532,11 @@ async function fetchFilteredMarketOpportunities(forceRefresh = true) {
   if (isOppRefreshing) return;
   isOppRefreshing = true;
 
+  if (oppFetchAbortController) {
+    oppFetchAbortController.abort();
+  }
+  oppFetchAbortController = new AbortController();
+
   if (els.wlGeminiOppRefreshBtn) {
     els.wlGeminiOppRefreshBtn.disabled = true;
     els.wlGeminiOppRefreshBtn.classList.add("is-refreshing");
@@ -3449,28 +3553,43 @@ async function fetchFilteredMarketOpportunities(forceRefresh = true) {
     }
 
     let res;
-    try {
-      res = await safeFetchJson(
-        `/api/gemini/watchlist-briefing?refresh=${forceRefresh}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ watchlist: list, filters: oppFilters }),
-        },
-        50000
-      );
-    } catch (fetchErr) {
-      // Show inline error — don't silently use stale data without notifying user
-      if (els.wlGeminiOppEmpty) {
-        els.wlGeminiOppEmpty.hidden = false;
-        const errMsg = els.wlGeminiOppEmpty.querySelector("p") || els.wlGeminiOppEmpty;
-        errMsg.textContent = fetchErr.name === "AbortError"
-          ? "Request timed out. Try again in a moment."
-          : "Could not refresh opportunities. Check your connection.";
+    let attempts = 0;
+    const maxAttempts = 2;
+
+    while (attempts < maxAttempts) {
+      attempts++;
+      try {
+        res = await safeFetchJson(
+          `/api/gemini/watchlist-briefing?refresh=${forceRefresh}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ watchlist: list, filters: appliedOppFilters }),
+            signal: oppFetchAbortController.signal,
+          },
+          50000
+        );
+        break;
+      } catch (fetchErr) {
+        if (fetchErr.name === "AbortError") {
+          return;
+        }
+        if (attempts >= maxAttempts) {
+          if (els.wlGeminiOppEmpty) {
+            els.wlGeminiOppEmpty.hidden = false;
+            if (els.wlGeminiOppEmptyMsg) {
+              els.wlGeminiOppEmptyMsg.textContent = "Could not refresh opportunities. Check your connection or try again.";
+            }
+          }
+          const filtered = window.OpportunityFilters
+            ? window.OpportunityFilters.filterOpportunities(allMarketOpportunitiesPool, appliedOppFilters)
+            : allMarketOpportunitiesPool;
+          renderMarketOpportunitiesList(filtered);
+          return;
+        }
+        const delayMs = 1000 * Math.pow(2, attempts) + Math.random() * 500;
+        await new Promise((r) => setTimeout(r, delayMs));
       }
-      const filtered = allMarketOpportunitiesPool.filter((o) => matchesOppFilters(o, oppFilters));
-      renderMarketOpportunitiesList(filtered);
-      return;
     }
 
     if (res && res.success && res.data && Array.isArray(res.data.market_opportunities)) {
@@ -3491,7 +3610,9 @@ async function fetchFilteredMarketOpportunities(forceRefresh = true) {
       }
     }
 
-    const filtered = allMarketOpportunitiesPool.filter((o) => matchesOppFilters(o, oppFilters));
+    const filtered = window.OpportunityFilters
+      ? window.OpportunityFilters.filterOpportunities(allMarketOpportunitiesPool, appliedOppFilters)
+      : allMarketOpportunitiesPool;
     renderMarketOpportunitiesList(filtered);
   } finally {
     if (els.wlGeminiOppLoading) els.wlGeminiOppLoading.hidden = true;
@@ -3501,7 +3622,7 @@ async function fetchFilteredMarketOpportunities(forceRefresh = true) {
         els.wlGeminiOppRefreshBtn.disabled = false;
         els.wlGeminiOppRefreshBtn.classList.remove("is-refreshing");
       }
-    }, 1500);
+    }, 1200);
   }
 }
 
@@ -3524,7 +3645,7 @@ async function fetchWatchlistBriefing(forceRefresh = false) {
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ watchlist: list, filters: oppFilters }),
+        body: JSON.stringify({ watchlist: list, filters: appliedOppFilters }),
       },
       50000
     );
@@ -3691,14 +3812,10 @@ function renderWatchlistBriefing(data) {
 
       updateOppFilterUIState();
 
-      const activeCount = (oppFilters.risk?.length || 0) + (oppFilters.confidence?.length || 0) + (oppFilters.rating?.length || 0);
-      const filtered = allMarketOpportunitiesPool.filter((o) => matchesOppFilters(o, oppFilters));
-
-      if (filtered.length < 3 && activeCount > 0) {
-        fetchFilteredMarketOpportunities(false);
-      } else {
-        renderMarketOpportunitiesList(filtered);
-      }
+      const filtered = window.OpportunityFilters
+        ? window.OpportunityFilters.filterOpportunities(allMarketOpportunitiesPool, appliedOppFilters)
+        : allMarketOpportunitiesPool;
+      renderMarketOpportunitiesList(filtered);
     }
   }
 
@@ -4548,64 +4665,71 @@ if (els.wlGeminiRefreshBtn) {
 // ---------------------------------------------------------------------------
 // Market Opportunities Event Listeners
 // ---------------------------------------------------------------------------
-if (els.wlGeminiOppFilterToggle && els.wlGeminiOppFiltersPanel) {
-  els.wlGeminiOppFilterToggle.addEventListener("click", (e) => {
-    e.preventDefault();
-    const isHidden = els.wlGeminiOppFiltersPanel.hidden;
-    els.wlGeminiOppFiltersPanel.hidden = !isHidden;
-    els.wlGeminiOppFilterToggle.setAttribute("aria-expanded", isHidden ? "true" : "false");
-  });
-}
-
 if (els.wlGeminiOppFiltersPanel) {
   els.wlGeminiOppFiltersPanel.querySelectorAll(".wl-opp-chip").forEach((chip) => {
     chip.addEventListener("click", (e) => {
       e.preventDefault();
-      const group = chip.closest(".wl-opp-chip-group")?.getAttribute("data-filter-group");
-      const val = chip.getAttribute("data-value");
+      const group = chip.dataset.group;
+      const val = chip.dataset.value;
       if (!group || !val) return;
 
-      if (!oppFilters[group]) oppFilters[group] = [];
-      const idx = oppFilters[group].indexOf(val);
-      if (idx > -1) {
-        oppFilters[group].splice(idx, 1);
-      } else {
-        oppFilters[group].push(val);
+      if (window.OpportunityFilters) {
+        pendingOppFilters = window.OpportunityFilters.toggleFilterOption(pendingOppFilters, group, val);
       }
-
-      setStoredOppFilters(oppFilters);
       updateOppFilterUIState();
-
-      const activeCount = (oppFilters.risk?.length || 0) + (oppFilters.confidence?.length || 0) + (oppFilters.rating?.length || 0);
-      const filtered = allMarketOpportunitiesPool.filter((o) => matchesOppFilters(o, oppFilters));
-
-      if (filtered.length >= 3 || (activeCount === 0 && allMarketOpportunitiesPool.length > 0)) {
-        renderMarketOpportunitiesList(filtered);
-      } else {
-        fetchFilteredMarketOpportunities(false);
-      }
     });
   });
 }
 
-function handleClearOppFilters() {
-  oppFilters = { risk: [], confidence: [], rating: [] };
-  setStoredOppFilters(oppFilters);
+// Apply Filters button
+if (els.wlGeminiOppApplyBtn) {
+  els.wlGeminiOppApplyBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    if (window.OpportunityFilters) {
+      appliedOppFilters = window.OpportunityFilters.cloneFilterState(pendingOppFilters);
+    } else {
+      appliedOppFilters = JSON.parse(JSON.stringify(pendingOppFilters));
+    }
+    persistOppFilters(appliedOppFilters);
+    updateOppFilterUIState();
+
+    const filtered = window.OpportunityFilters
+      ? window.OpportunityFilters.filterOpportunities(allMarketOpportunitiesPool, appliedOppFilters)
+      : allMarketOpportunitiesPool;
+
+    if (filtered.length === 0 && allMarketOpportunitiesPool.length === 0) {
+      fetchFilteredMarketOpportunities(false);
+    } else {
+      renderMarketOpportunitiesList(filtered);
+    }
+  });
+}
+
+// Reset Filters button
+function handleResetOppFilters() {
+  if (window.OpportunityFilters) {
+    pendingOppFilters = window.OpportunityFilters.createInitialFilterState();
+    appliedOppFilters = window.OpportunityFilters.createInitialFilterState();
+  } else {
+    pendingOppFilters = { risk: [], confidence: [], rating: [] };
+    appliedOppFilters = { risk: [], confidence: [], rating: [] };
+  }
+  persistOppFilters(appliedOppFilters);
   updateOppFilterUIState();
   renderMarketOpportunitiesList(allMarketOpportunitiesPool);
 }
 
-if (els.wlGeminiOppClearFiltersBtn) {
-  els.wlGeminiOppClearFiltersBtn.addEventListener("click", (e) => {
+if (els.wlGeminiOppResetBtn) {
+  els.wlGeminiOppResetBtn.addEventListener("click", (e) => {
     e.preventDefault();
-    handleClearOppFilters();
+    handleResetOppFilters();
   });
 }
 
-if (els.wlGeminiOppEmptyClearBtn) {
-  els.wlGeminiOppEmptyClearBtn.addEventListener("click", (e) => {
+if (els.wlGeminiOppEmptyResetBtn) {
+  els.wlGeminiOppEmptyResetBtn.addEventListener("click", (e) => {
     e.preventDefault();
-    handleClearOppFilters();
+    handleResetOppFilters();
   });
 }
 
