@@ -218,6 +218,7 @@ const STORAGE_WATCHLIST_KEY = "stock_ledger_watchlist";
 // Ticker Autocomplete
 // ---------------------------------------------------------------------------
 let acDebounceTimer = null;
+let acSearchController = null;
 let acActiveIndex = -1;
 let acSuggestions = [];
 
@@ -472,14 +473,18 @@ function initAutocomplete() {
     }
 
     acDebounceTimer = setTimeout(async () => {
+      if (acSearchController) acSearchController.abort();
+      acSearchController = new AbortController();
       try {
-        const resp = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
-        if (!resp.ok) return;
-        const data = await resp.json();
+        const data = await safeFetchJson(
+          `/api/search?q=${encodeURIComponent(q)}`,
+          { signal: acSearchController.signal },
+          5000
+        );
         const suggestions = data.suggestions || [];
         acClientCache.set(q, suggestions);
         renderDropdown(suggestions);
-      } catch (_) { /* silent — network may be absent */ }
+      } catch (_) { /* silent — network may be absent or aborted */ }
     }, 180);
   });
 
@@ -2121,7 +2126,7 @@ function saveHistory(item) {
     localStorage.setItem(STORAGE_HISTORY_KEY, JSON.stringify(history));
     renderHistoryUI();
   } catch (err) {
-    console.error("Failed to save history:", err);
+    /* history save failed — non-critical, suppress */
   }
 }
 
@@ -2967,12 +2972,54 @@ function openSignalReviewModal(review, ticker, companyName) {
     }
   }
 
+  preModalFocusedElement = document.activeElement;
   modal.hidden = false;
   modal.setAttribute("aria-hidden", "false");
   document.body.classList.add("modal-open");
 
+  requestAnimationFrame(() => {
+    const focusTarget = els.signalModalCloseBtn || modal.querySelector("button, [tabindex]");
+    if (focusTarget && typeof focusTarget.focus === "function") {
+      focusTarget.focus();
+    }
+  });
+
   // Load AI Research Suggestion for this ticker
   loadGeminiModalSuggestion(safeTicker, safeCompany, r, false);
+}
+
+let preModalFocusedElement = null;
+
+function trapModalFocus(e) {
+  const modal = els.signalReviewModal;
+  if (!modal || modal.hidden) return;
+  if (e.key !== "Tab") return;
+
+  const focusable = Array.from(
+    modal.querySelectorAll(
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    )
+  ).filter((el) => el.offsetParent !== null || el.offsetWidth > 0 || el.offsetHeight > 0);
+
+  if (!focusable.length) {
+    e.preventDefault();
+    return;
+  }
+
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+
+  if (e.shiftKey) {
+    if (document.activeElement === first || !modal.contains(document.activeElement)) {
+      e.preventDefault();
+      last.focus();
+    }
+  } else {
+    if (document.activeElement === last || !modal.contains(document.activeElement)) {
+      e.preventDefault();
+      first.focus();
+    }
+  }
 }
 
 function closeSignalReviewModal() {
@@ -2981,6 +3028,13 @@ function closeSignalReviewModal() {
   modal.hidden = true;
   modal.setAttribute("aria-hidden", "true");
   document.body.classList.remove("modal-open");
+
+  if (preModalFocusedElement && typeof preModalFocusedElement.focus === "function") {
+    try {
+      preModalFocusedElement.focus();
+    } catch (_) {}
+    preModalFocusedElement = null;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -3394,43 +3448,49 @@ async function fetchFilteredMarketOpportunities(forceRefresh = true) {
       return;
     }
 
-    const resp = await fetch(`/api/gemini/watchlist-briefing?refresh=${forceRefresh}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ watchlist: list, filters: oppFilters }),
-    });
-
-    if (resp.ok) {
-      const res = await resp.json();
-      if (res.success && res.data && Array.isArray(res.data.market_opportunities)) {
-        const newOpps = res.data.market_opportunities;
-        const existingMap = new Map();
-        allMarketOpportunitiesPool.forEach((o) => {
-          const k = (o.ticker || "").toUpperCase();
-          if (k) existingMap.set(k, o);
-        });
-        newOpps.forEach((o) => {
-          const k = (o.ticker || "").toUpperCase();
-          if (k) existingMap.set(k, o);
-        });
-        allMarketOpportunitiesPool = Array.from(existingMap.values());
-
-        if (geminiWatchlistBriefingCache) {
-          geminiWatchlistBriefingCache.market_opportunities = newOpps;
-        }
-
-        const filtered = allMarketOpportunitiesPool.filter((o) => matchesOppFilters(o, oppFilters));
-        renderMarketOpportunitiesList(filtered);
-      } else {
-        const filtered = allMarketOpportunitiesPool.filter((o) => matchesOppFilters(o, oppFilters));
-        renderMarketOpportunitiesList(filtered);
+    let res;
+    try {
+      res = await safeFetchJson(
+        `/api/gemini/watchlist-briefing?refresh=${forceRefresh}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ watchlist: list, filters: oppFilters }),
+        },
+        50000
+      );
+    } catch (fetchErr) {
+      // Show inline error — don't silently use stale data without notifying user
+      if (els.wlGeminiOppEmpty) {
+        els.wlGeminiOppEmpty.hidden = false;
+        const errMsg = els.wlGeminiOppEmpty.querySelector("p") || els.wlGeminiOppEmpty;
+        errMsg.textContent = fetchErr.name === "AbortError"
+          ? "Request timed out. Try again in a moment."
+          : "Could not refresh opportunities. Check your connection.";
       }
-    } else {
       const filtered = allMarketOpportunitiesPool.filter((o) => matchesOppFilters(o, oppFilters));
       renderMarketOpportunitiesList(filtered);
+      return;
     }
-  } catch (err) {
-    console.error("Failed to fetch filtered opportunities:", err);
+
+    if (res && res.success && res.data && Array.isArray(res.data.market_opportunities)) {
+      const newOpps = res.data.market_opportunities;
+      const existingMap = new Map();
+      allMarketOpportunitiesPool.forEach((o) => {
+        const k = (o.ticker || "").toUpperCase();
+        if (k) existingMap.set(k, o);
+      });
+      newOpps.forEach((o) => {
+        const k = (o.ticker || "").toUpperCase();
+        if (k) existingMap.set(k, o);
+      });
+      allMarketOpportunitiesPool = Array.from(existingMap.values());
+
+      if (geminiWatchlistBriefingCache) {
+        geminiWatchlistBriefingCache.market_opportunities = newOpps;
+      }
+    }
+
     const filtered = allMarketOpportunitiesPool.filter((o) => matchesOppFilters(o, oppFilters));
     renderMarketOpportunitiesList(filtered);
   } finally {
@@ -3459,17 +3519,15 @@ async function fetchWatchlistBriefing(forceRefresh = false) {
   if (els.wlGeminiContentWrap) els.wlGeminiContentWrap.hidden = true;
 
   try {
-    const resp = await fetch(`/api/gemini/watchlist-briefing?refresh=${forceRefresh}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ watchlist: list, filters: oppFilters }),
-    });
-
-    if (!resp.ok) {
-      throw new Error(`Server error (${resp.status})`);
-    }
-
-    const res = await resp.json();
+    const res = await safeFetchJson(
+      `/api/gemini/watchlist-briefing?refresh=${forceRefresh}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ watchlist: list, filters: oppFilters }),
+      },
+      50000
+    );
     if (els.wlGeminiLoadingState) els.wlGeminiLoadingState.hidden = true;
 
     if (!res.configured) {
@@ -4339,11 +4397,19 @@ async function downloadExport(format, btn) {
   btn.classList.add("is-loading");
 
   try {
-    const res = await fetch(`${API_BASE}/api/export/${format}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(currentAnalysis),
-    });
+    const controller = new AbortController();
+    const exportTimer = setTimeout(() => controller.abort(), 30000);
+    let res;
+    try {
+      res = await fetch(`${API_BASE}/api/export/${format}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(currentAnalysis),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(exportTimer);
+    }
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
       throw new Error(body.detail || `Export failed (${res.status}).`);
@@ -4592,12 +4658,21 @@ if (els.wlGeminiRetryBtn) {
   });
 }
 
-// Keyboard shortcuts (Escape closes open panels)
+// Keyboard shortcuts (Escape closes open panels, Tab traps within modal)
 window.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") {
-    if (els.signalReviewModal && !els.signalReviewModal.hidden) {
+  if (els.signalReviewModal && !els.signalReviewModal.hidden) {
+    if (e.key === "Tab") {
+      trapModalFocus(e);
+      return;
+    }
+    if (e.key === "Escape") {
       closeSignalReviewModal();
-    } else if (els.watchlistPanel && !els.watchlistPanel.hidden) {
+      return;
+    }
+  }
+
+  if (e.key === "Escape") {
+    if (els.watchlistPanel && !els.watchlistPanel.hidden) {
       toggleWatchlistPanel(false);
     } else if (!els.historyPanel.hidden) {
       toggleHistoryPanel(false);

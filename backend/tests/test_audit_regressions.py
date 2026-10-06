@@ -45,5 +45,62 @@ class TestAuditRegressions(unittest.TestCase):
         res = search_ticker(resp, q="")
         self.assertEqual(res, {"suggestions": []})
 
+    def test_security_headers(self):
+        import asyncio
+        from main import SecurityHeadersMiddleware
+        from starlette.requests import Request
+        from starlette.responses import Response as StarletteResponse
+
+        async def _run():
+            mw = SecurityHeadersMiddleware(app=None)
+            scope = {"type": "http", "method": "GET", "path": "/api/health", "headers": []}
+            req = Request(scope)
+            async def call_next(r):
+                return StarletteResponse("ok")
+            res = await mw.dispatch(req, call_next)
+            self.assertEqual(res.headers.get("X-Content-Type-Options"), "nosniff")
+            self.assertEqual(res.headers.get("X-Frame-Options"), "DENY")
+            self.assertEqual(res.headers.get("X-DNS-Prefetch-Control"), "off")
+            self.assertIn("camera=()", res.headers.get("Permissions-Policy", ""))
+            self.assertIn("max-age=31536000", res.headers.get("Strict-Transport-Security", ""))
+
+        asyncio.run(_run())
+
+    def test_rate_limiter(self):
+        import asyncio
+        from main import RateLimitMiddleware
+        from starlette.requests import Request
+        from starlette.responses import Response as StarletteResponse
+
+        async def _run():
+            mw = RateLimitMiddleware(app=None, general_limit=2, expensive_limit=1, window_secs=60)
+            scope = {
+                "type": "http",
+                "method": "GET",
+                "path": "/api/search",
+                "headers": [(b"x-forwarded-for", b"203.0.113.195")],
+                "client": ("203.0.113.195", 1234),
+            }
+            req = Request(scope)
+            async def call_next(r):
+                return StarletteResponse("ok")
+
+            r1 = await mw.dispatch(req, call_next)
+            self.assertEqual(r1.status_code, 200)
+            r2 = await mw.dispatch(req, call_next)
+            self.assertEqual(r2.status_code, 200)
+            r3 = await mw.dispatch(req, call_next)
+            self.assertEqual(r3.status_code, 429)
+            self.assertIn("Retry-After", r3.headers)
+
+        asyncio.run(_run())
+
+    def test_openapi_schema_deduplication(self):
+        from main import app
+        schema = app.openapi()
+        paths = schema.get("paths", {})
+        self.assertIn("/api/cache/stats", paths)
+        self.assertNotIn("/api/session/stats", paths)
+
 if __name__ == "__main__":
     unittest.main()

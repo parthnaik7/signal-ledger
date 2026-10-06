@@ -20,7 +20,7 @@ import re
 import urllib.parse
 
 import pandas as pd
-from fastapi import Body, FastAPI, File, HTTPException, Query, Response, UploadFile
+from fastapi import Body, FastAPI, File, HTTPException, Query, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -58,10 +58,63 @@ app.add_middleware(
 
 
 # ---------------------------------------------------------------------------
-# Security headers middleware
+# Rate limiting & Security headers middleware
 # ---------------------------------------------------------------------------
+import time
+import threading
+from collections import defaultdict
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request as StarletteRequest
+from starlette.responses import JSONResponse
+
+
+class RateLimitMiddleware(BaseHTTPMiddleware):
+    def __init__(self, app, general_limit: int = 120, expensive_limit: int = 40, window_secs: int = 60):
+        super().__init__(app)
+        self.general_limit = general_limit
+        self.expensive_limit = expensive_limit
+        self.window_secs = window_secs
+        self._history = defaultdict(list)
+        self._lock = threading.Lock()
+        self._last_clean = time.time()
+
+    async def dispatch(self, request: StarletteRequest, call_next):
+        path = request.url.path
+        if not path.startswith("/api/") or path == "/api/health":
+            return await call_next(request)
+
+        if os.getenv("TESTING") == "1" or not request.client:
+            return await call_next(request)
+
+        client_ip = request.headers.get("x-forwarded-for", "").split(",")[0].strip() or request.client.host
+        now = time.time()
+        window_start = now - self.window_secs
+
+        is_expensive = path.startswith("/api/gemini/") or path.startswith("/api/analyze")
+        limit = self.expensive_limit if is_expensive else self.general_limit
+        key = f"{client_ip}:exp" if is_expensive else f"{client_ip}:gen"
+
+        with self._lock:
+            if now - self._last_clean > 300:
+                self._last_clean = now
+                for k in list(self._history.keys()):
+                    self._history[k] = [t for t in self._history[k] if t > window_start]
+                    if not self._history[k]:
+                        del self._history[k]
+
+            timestamps = [t for t in self._history[key] if t > window_start]
+            if len(timestamps) >= limit:
+                retry_after = int(self.window_secs - (now - timestamps[0])) + 1
+                return JSONResponse(
+                    status_code=429,
+                    content={"detail": "Too many requests. Please slow down and try again shortly."},
+                    headers={"Retry-After": str(max(1, retry_after))},
+                )
+
+            timestamps.append(now)
+            self._history[key] = timestamps
+
+        return await call_next(request)
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -71,6 +124,9 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["X-XSS-Protection"] = "0"  # rely on CSP in modern browsers
+        response.headers["X-DNS-Prefetch-Control"] = "off"
+        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(), payment=()"
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
             "script-src 'self' 'unsafe-inline'; "
@@ -82,6 +138,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         return response
 
 
+app.add_middleware(RateLimitMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 
 
@@ -246,7 +303,7 @@ def _require_admin(request: Request) -> None:
 
 
 @app.get("/api/cache/stats")
-@app.get("/api/session/stats")
+@app.get("/api/session/stats", include_in_schema=False)
 def system_stats(request: Request):
     """Returns telemetry diagnostics. Requires X-Admin-Token header matching ADMIN_TOKEN env var."""
     _require_admin(request)
