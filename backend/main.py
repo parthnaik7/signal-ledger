@@ -17,6 +17,7 @@ import concurrent.futures
 import os
 import time
 import re
+import hashlib
 import urllib.parse
 
 import pandas as pd
@@ -463,7 +464,8 @@ def gemini_watchlist_briefing(
         if r_part or c_part or rt_part:
             filter_suffix = f":r={r_part}:c={c_part}:rt={rt_part}"
 
-    cache_key = f"gemini:watchlist:{hash(tickers_key)}{filter_suffix}"
+    tickers_hash = hashlib.sha256(tickers_key.encode("utf-8")).hexdigest()[:16]
+    cache_key = f"gemini:watchlist:{tickers_hash}{filter_suffix}"
 
     if not refresh:
         cached = cache_manager.get(cache_key)

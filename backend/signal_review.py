@@ -572,12 +572,12 @@ def fetch_signal_review(
     if _low52 is not None:
         _low52 = float(_low52)
         _tech_metrics["latest_low"] = _low52
-        if _cur:
+        if _cur and _low52 > 0:
             _tech_metrics["diff_from_latest_low_pct"] = round(((float(_cur) - _low52) / _low52) * 100.0, 2)
     if _high52 is not None:
         _high52 = float(_high52)
         _tech_metrics["latest_high"] = _high52
-        if _cur:
+        if _cur and _high52 > 0:
             _tech_metrics["diff_from_latest_high_pct"] = round(((float(_cur) - _high52) / _high52) * 100.0, 2)
 
     # Compute unified quantitative rating

@@ -195,7 +195,8 @@ class UnifiedSessionManager:
         Automatically detects session/token expiration (401/403/429) and recovers.
         """
         session = self.get_session()
-        self._request_count += 1
+        with self._session_lock:
+            self._request_count += 1
 
         try:
             resp = session.get(url, params=params, headers=headers, timeout=timeout, **kwargs)

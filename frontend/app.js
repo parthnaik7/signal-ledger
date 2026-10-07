@@ -537,6 +537,15 @@ function initAutocomplete() {
 // ---------------------------------------------------------------------------
 // Watchlist Module
 // ---------------------------------------------------------------------------
+function safeSetStorage(key, value) {
+  try {
+    localStorage.setItem(key, typeof value === "string" ? value : JSON.stringify(value));
+    return true;
+  } catch (err) {
+    return false;
+  }
+}
+
 function getWatchlist() {
   try {
     return JSON.parse(localStorage.getItem(STORAGE_WATCHLIST_KEY) || "[]");
@@ -544,7 +553,7 @@ function getWatchlist() {
 }
 
 function saveWatchlist(list) {
-  localStorage.setItem(STORAGE_WATCHLIST_KEY, JSON.stringify(list));
+  safeSetStorage(STORAGE_WATCHLIST_KEY, list);
 }
 
 function isWatchlisted(ticker) {
@@ -2790,11 +2799,13 @@ function openSignalReviewModal(review, ticker, companyName) {
     const diffLow = currentAnalysis?.diff_from_latest_low_pct != null ? currentAnalysis.diff_from_latest_low_pct : null;
     const diffHigh = currentAnalysis?.diff_from_latest_high_pct != null ? currentAnalysis.diff_from_latest_high_pct : null;
     const bestYr = currentAnalysis?.best_move_current_year != null ? currentAnalysis.best_move_current_year : null;
+    const bestYrPct = bestYr?.pct_diff != null ? Number(bestYr.pct_diff) : null;
     const bestAll = currentAnalysis?.best_move_overall != null ? currentAnalysis.best_move_overall : null;
+    const bestAllPct = bestAll?.pct_diff != null ? Number(bestAll.pct_diff) : null;
 
     if (els.signalSummaryText) {
       if (isEtf) {
-        els.signalSummaryText.innerHTML = `<strong>${escapeHtml(safeTicker)}</strong> is an Exchange-Traded Fund (${escapeHtml(safeCompany || "Index Basket")}). Wall Street equity research analysts do not issue individual price targets or buy/sell consensus ratings for ETFs. Instead, evaluate ${escapeHtml(safeTicker)} using the <strong>52-Week Range Channel</strong>, <strong>Sequential Volatility Gain</strong> (${bestYr != null ? `+${bestYr.toFixed(1)}% this year` : "active"}), and AI Research perspective below.`;
+        els.signalSummaryText.innerHTML = `<strong>${escapeHtml(safeTicker)}</strong> is an Exchange-Traded Fund (${escapeHtml(safeCompany || "Index Basket")}). Wall Street equity research analysts do not issue individual price targets or buy/sell consensus ratings for ETFs. Instead, evaluate ${escapeHtml(safeTicker)} using the <strong>52-Week Range Channel</strong>, <strong>Sequential Volatility Gain</strong> (${bestYrPct != null ? `+${bestYrPct.toFixed(1)}% this year` : "active"}), and AI Research perspective below.`;
       } else {
         els.signalSummaryText.innerHTML = `<strong>${escapeHtml(safeTicker)}</strong> (${escapeHtml(safeCompany || "Public Security")}) does not currently have sell-side Wall Street analyst coverage or Refinitiv consensus ratings reported on major institutional feeds. SignalLedger 52-week channel bounds and sequential range intelligence are active below.`;
       }
@@ -2862,8 +2873,8 @@ function openSignalReviewModal(review, ticker, companyName) {
       els.signalBrokerTbody.innerHTML = `
         <tr><td>Technical Support</td><td><strong>52-Week Low</strong></td><td><span class="broker-badge badge-reiterated">Range Floor</span></td><td>${low52 != null ? formatPrice(low52) : "—"}</td><td class="num">${diffLow != null ? `+${diffLow.toFixed(1)}%` : "—"}</td></tr>
         <tr><td>Technical Resistance</td><td><strong>52-Week High</strong></td><td><span class="broker-badge badge-reiterated">Range Ceiling</span></td><td>${high52 != null ? formatPrice(high52) : "—"}</td><td class="num">${diffHigh != null ? `${diffHigh.toFixed(1)}%` : "—"}</td></tr>
-        <tr><td>Active Cycle Volatility</td><td><strong>Sequential Max Gain</strong></td><td><span class="broker-badge badge-upgrade">Current Year</span></td><td>${bestYr != null ? `+${bestYr.toFixed(1)}%` : "—"}</td><td class="num">Year-to-date</td></tr>
-        <tr><td>Peak Historical Cycle</td><td><strong>Sequential Max Gain</strong></td><td><span class="broker-badge badge-upgrade">Historical</span></td><td>${bestAll != null ? `+${bestAll.toFixed(1)}%` : "—"}</td><td class="num">Multi-Year Peak</td></tr>
+        <tr><td>Active Cycle Volatility</td><td><strong>Sequential Max Gain</strong></td><td><span class="broker-badge badge-upgrade">Current Year</span></td><td>${bestYrPct != null ? `+${bestYrPct.toFixed(1)}%` : "—"}</td><td class="num">Year-to-date</td></tr>
+        <tr><td>Peak Historical Cycle</td><td><strong>Sequential Max Gain</strong></td><td><span class="broker-badge badge-upgrade">Historical</span></td><td>${bestAllPct != null ? `+${bestAllPct.toFixed(1)}%` : "—"}</td><td class="num">Multi-Year Peak</td></tr>
       `;
     }
   } else {
@@ -3782,7 +3793,11 @@ async function fetchWatchlistBriefing(forceRefresh = false) {
 function renderFocusTradeCards(trades) {
   if (!els.wlGeminiFocusGrid) return;
   if (!trades || !trades.length) {
-    els.wlGeminiFocusGrid.innerHTML = `<div class="empty-cell">No setups match the selected filters.</div>`;
+    els.wlGeminiFocusGrid.innerHTML = `
+      <div class="empty-cell" style="display:flex; flex-direction:column; align-items:center; gap:8px; padding:16px;">
+        <span>No setups match the selected filters.</span>
+        <button type="button" class="wl-gemini-opp-btn-text" onclick="document.getElementById('wlGeminiFocusResetBtn')?.click()" style="cursor:pointer; text-decoration:underline;">Reset filters</button>
+      </div>`;
     return;
   }
   els.wlGeminiFocusGrid.innerHTML = trades.map((t) => {
@@ -4681,7 +4696,7 @@ document.querySelectorAll(".stepper-btn").forEach((btn) => {
 
 // Primary actions
 els.fetchBtn.addEventListener("click", handleFetch);
-els.ticker.addEventListener("keydown", (e) => { if (e.key === "Enter") handleFetch(); });
+els.ticker.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.defaultPrevented) handleFetch(); });
 if (els.submitCsvBtn) els.submitCsvBtn.addEventListener("click", handleSubmitCsv);
 
 // Export buttons

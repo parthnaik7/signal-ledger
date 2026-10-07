@@ -102,5 +102,25 @@ class TestAuditRegressions(unittest.TestCase):
         self.assertIn("/api/cache/stats", paths)
         self.assertNotIn("/api/session/stats", paths)
 
+    def test_zero_division_guard_in_signal_review(self):
+        from signal_review import fetch_signal_review
+        info = {
+            "fiftyTwoWeekLow": 0.0,
+            "fiftyTwoWeekHigh": 0.0,
+            "regularMarketPrice": 10.0,
+            "previousClose": 10.0,
+        }
+        res = fetch_signal_review("ZERO_CO", info=info)
+        self.assertIsNotNone(res)
+        self.assertIn("verdict", res)
+
+    def test_sha256_cache_key_determinism(self):
+        import hashlib
+        key = "AAPL,MSFT,NVDA"
+        h1 = hashlib.sha256(key.encode("utf-8")).hexdigest()[:16]
+        h2 = hashlib.sha256(key.encode("utf-8")).hexdigest()[:16]
+        self.assertEqual(h1, h2)
+        self.assertEqual(len(h1), 16)
+
 if __name__ == "__main__":
     unittest.main()
