@@ -9,13 +9,19 @@ from __future__ import annotations
 
 import io
 import json
+import logging
+import random
 import re
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import pandas as pd
 
+from cache_manager import CacheTier, cache_manager
 from session_manager import session_manager
+
+logger = logging.getLogger("stock_ledger.data_source")
 
 try:
     import yfinance as yf
@@ -39,40 +45,55 @@ def normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
 
 def fetch_live_quote(ticker: str) -> dict:
     """
-    Best-effort fetch of a near-real-time price for `ticker`, for stamping
-    exports with "today's price" rather than only the last daily close in
-    the historical dataset. Falls back through a couple of yfinance
-    accessors since availability varies by ticker/market state.
-    Raises DataFetchError if nothing works (e.g. no network, bad symbol).
+    Best-effort fetch of a near-real-time price for `ticker`, with caching,
+    token-bucket rate throttling, and stale fallback.
     """
+    clean_sym = ticker.strip().upper()
+    cache_key = f"quote_live:{clean_sym}"
+    cached = cache_manager.get(cache_key)
+    if cached is not None:
+        return cached
+
     if yf is None:
         raise DataFetchError("yfinance is not installed on the server.")
 
-    try:
-        t = session_manager.create_ticker(ticker.strip().upper())
-        price = None
-        as_of_note = "live quote"
+    price = None
+    as_of_note = "live quote"
 
+    for attempt in range(2):
+        session_manager.rate_limiter.acquire()
         try:
-            fi = t.fast_info
-            price = fi.get("last_price") if isinstance(fi, dict) else getattr(fi, "last_price", None)
+            t = session_manager.create_ticker(clean_sym)
+            if t:
+                try:
+                    fi = t.fast_info
+                    price = fi.get("last_price") if isinstance(fi, dict) else getattr(fi, "last_price", None)
+                except Exception:
+                    price = None
+
+                if price is None:
+                    hist = t.history(period="1d")
+                    if not hist.empty:
+                        price = float(hist["Close"].iloc[-1])
+                        as_of_note = "most recent session close"
+            if price is not None:
+                break
         except Exception:
-            price = None
+            if attempt == 0:
+                session_manager.reset_session(reason="live_quote_retry")
+                time.sleep(0.5)
 
-        if price is None:
-            hist = t.history(period="1d")
-            if not hist.empty:
-                price = float(hist["Close"].iloc[-1])
-                as_of_note = "most recent session close"
+    if price is not None:
+        result = {"price": float(price), "note": as_of_note}
+        cache_manager.set(cache_key, result, ttl_seconds=CacheTier.QUOTE)
+        return result
 
-        if price is None:
-            raise DataFetchError(f"No live price available for '{ticker}'.")
+    # Stale fallback
+    stale = cache_manager.get_stale(cache_key)
+    if stale is not None:
+        return {"price": float(stale["price"]), "note": "cached snapshot (live rate-limited)"}
 
-        return {"price": float(price), "note": as_of_note}
-    except DataFetchError:
-        raise
-    except Exception as exc:  # noqa: BLE001
-        raise DataFetchError(f"Could not fetch a live quote for '{ticker}': {exc}") from exc
+    raise DataFetchError(f"No live price available for '{clean_sym}'.")
 
 
 def fetch_from_yahoo(ticker: str, years_back: int = 6) -> pd.DataFrame:
@@ -81,37 +102,67 @@ def fetch_from_yahoo(ticker: str, years_back: int = 6) -> pd.DataFrame:
     `years_back` years, using the same underlying data Yahoo's own
     /quote/{ticker}/history page renders.
 
-    Requires outbound internet access to Yahoo Finance from wherever this
-    server runs. In network-restricted environments (e.g. some sandboxes)
-    this will raise DataFetchError — use the CSV upload endpoint instead.
+    Protected with:
+    1. Client-side token bucket rate throttling.
+    2. Exponential backoff and full random jitter on 429 / empty responses.
+    3. Active session reset & cookie re-seeding on retryable errors.
+    4. Stale cache fallback if live Yahoo endpoints are temporarily blocked.
     """
     if yf is None:
         raise DataFetchError("yfinance is not installed on the server.")
 
+    clean_ticker = ticker.strip().upper()
+    cache_key = f"yahoo_raw:{clean_ticker}:{years_back}"
+
+    # Return cached raw dataframe if fresh
+    cached = cache_manager.get(cache_key)
+    if cached is not None and isinstance(cached, pd.DataFrame) and not cached.empty:
+        return _coerce_ohlc(cached)
+
     end = datetime.now(timezone.utc).replace(tzinfo=None)
     start = end - timedelta(days=365 * years_back + 30)
 
-    try:
-        raw = yf.download(
-            ticker.strip().upper(),
-            start=start.strftime("%Y-%m-%d"),
-            end=end.strftime("%Y-%m-%d"),
-            interval="1d",
-            auto_adjust=True,
-            progress=False,
-            threads=False,
-            session=session_manager.get_session(),
-        )
-    except Exception as exc:  # noqa: BLE001 - surface any network/library error uniformly
-        raise DataFetchError(f"Could not reach Yahoo Finance for '{ticker}': {exc}") from exc
+    raw = None
+    max_retries = 3
+    base_backoff = 1.0
+    max_backoff = 8.0
 
-    if raw is None or raw.empty:
-        raise DataFetchError(
-            f"No data returned for ticker '{ticker}'. Check the symbol is correct."
-        )
+    for attempt in range(max_retries):
+        session_manager.rate_limiter.acquire()
+        try:
+            raw = yf.download(
+                clean_ticker,
+                start=start.strftime("%Y-%m-%d"),
+                end=end.strftime("%Y-%m-%d"),
+                interval="1d",
+                auto_adjust=True,
+                progress=False,
+                threads=False,
+                session=session_manager.get_session(),
+            )
+            if raw is not None and not raw.empty:
+                raw = normalize_columns(raw.reset_index())
+                cache_manager.set(cache_key, raw, ttl_seconds=CacheTier.ANALYSIS)
+                return _coerce_ohlc(raw)
+        except Exception as exc:
+            logger.warning(f"yf.download attempt {attempt + 1}/{max_retries} failed for '{clean_ticker}': {exc}")
 
-    raw = normalize_columns(raw.reset_index())
-    return _coerce_ohlc(raw)
+        # If empty or failed, retry with session reset and jittered backoff
+        if attempt < max_retries - 1:
+            session_manager.reset_session(reason=f"yf_download_attempt_{attempt + 1}")
+            backoff = min(max_backoff, base_backoff * (2 ** attempt))
+            sleep_s = random.uniform(backoff * 0.5, backoff)
+            time.sleep(sleep_s)
+
+    # Fallback to stale cached data if live fetch was rate-limited
+    stale = cache_manager.get_stale(cache_key)
+    if stale is not None and isinstance(stale, pd.DataFrame) and not stale.empty:
+        logger.warning(f"Serving stale historical data for '{clean_ticker}' due to Yahoo Finance rate limits.")
+        return _coerce_ohlc(stale)
+
+    raise DataFetchError(
+        f"Yahoo Finance rate limit reached for '{clean_ticker}'. Please wait a moment or upload a history CSV."
+    )
 
 
 def parse_uploaded_csv(file_bytes: bytes) -> pd.DataFrame:

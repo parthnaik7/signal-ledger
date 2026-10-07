@@ -57,11 +57,13 @@ class IntelligentCacheManager:
             return
         self._max_entries = max_entries
         self._store: dict[str, CacheEntry] = {}
+        self._stale_store: dict[str, Any] = {}
         self._store_lock = threading.Lock()
 
         # Telemetry stats
         self._hits: int = 0
         self._misses: int = 0
+        self._stale_hits: int = 0
         self._evictions: int = 0
         self._initialized = True
 
@@ -93,6 +95,7 @@ class IntelligentCacheManager:
                 self._misses += 1
                 return None
             if entry.expires_at <= now:
+                self._stale_store[key] = entry.value
                 del self._store[key]
                 self._misses += 1
                 return None
@@ -110,7 +113,19 @@ class IntelligentCacheManager:
                 expires_at=now + ttl_seconds,
                 created_at=now,
             )
+            self._stale_store[key] = value
             self._enforce_max_size_locked()
+
+    def get_stale(self, key: str) -> Any | None:
+        """Retrieves cached item even if expired, for graceful offline/rate-limit fallback."""
+        with self._store_lock:
+            if key in self._store:
+                self._stale_hits += 1
+                return self._store[key].value
+            if key in self._stale_store:
+                self._stale_hits += 1
+                return self._stale_store[key]
+            return None
 
     def invalidate(self, prefix: str = "") -> int:
         """Invalidates all keys matching a prefix (or everything if prefix is empty)."""
@@ -118,10 +133,14 @@ class IntelligentCacheManager:
             if not prefix:
                 count = len(self._store)
                 self._store.clear()
+                self._stale_store.clear()
                 return count
             keys_to_del = [k for k in self._store if k.startswith(prefix)]
             for k in keys_to_del:
                 del self._store[k]
+            stale_to_del = [k for k in self._stale_store if k.startswith(prefix)]
+            for k in stale_to_del:
+                del self._stale_store[k]
             return len(keys_to_del)
 
     def get_or_compute(
