@@ -15,7 +15,7 @@
   const OPP_FILTER_OPTIONS = {
     risk: ["Low", "Moderate", "High"],
     confidence: ["High", "Medium", "Low"],
-    rating: ["Buy", "Hold", "Sell"],
+    rating: ["Buy", "Hold", "Sell", "Watch", "Trim"],
   };
 
   function normalizeRisk(val) {
@@ -40,8 +40,10 @@
     if (!val) return "";
     const s = String(val).trim().toUpperCase();
     if (s === "BUY" || s === "STRONG BUY") return "Buy";
-    if (s === "HOLD" || s === "WATCH" || s === "NEUTRAL") return "Hold";
+    if (s === "HOLD" || s === "NEUTRAL") return "Hold";
     if (s === "SELL" || s === "STRONG SELL") return "Sell";
+    if (s === "WATCH") return "Watch";
+    if (s === "TRIM") return "Trim";
     return s;
   }
 

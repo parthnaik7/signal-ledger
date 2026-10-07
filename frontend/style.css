@@ -4477,6 +4477,15 @@ body {
   flex-wrap: wrap;
 }
 
+/* Focus trades filter bar spacing */
+.wl-focus-filter-bar {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+}
+
 .wl-opp-groups-row {
   display: flex;
   align-items: center;
@@ -4720,6 +4729,30 @@ body {
   border-left: 3px solid #EF4444;
   color: #F87171;
   box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.2), inset 0 1px 0 rgba(255,255,255,0.04);
+}
+
+/* Watch / Trim — for focus_trades rating values */
+.wl-opp-chip[data-group="rating"][data-value="Watch"] {
+  border-left: 2px solid rgba(59, 130, 246, 0.4);
+  color: rgba(96, 165, 250, 0.65);
+}
+.wl-opp-chip[data-group="rating"][data-value="Watch"][aria-pressed="true"] {
+  background: rgba(59, 130, 246, 0.18);
+  border: 1px solid #3B82F6;
+  border-left: 3px solid #3B82F6;
+  color: #60A5FA;
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.2), inset 0 1px 0 rgba(255,255,255,0.04);
+}
+.wl-opp-chip[data-group="rating"][data-value="Trim"] {
+  border-left: 2px solid rgba(168, 85, 247, 0.4);
+  color: rgba(192, 132, 252, 0.65);
+}
+.wl-opp-chip[data-group="rating"][data-value="Trim"][aria-pressed="true"] {
+  background: rgba(168, 85, 247, 0.18);
+  border: 1px solid #A855F7;
+  border-left: 3px solid #A855F7;
+  color: #C084FC;
+  box-shadow: 0 0 0 1px rgba(168, 85, 247, 0.2), inset 0 1px 0 rgba(255,255,255,0.04);
 }
 
 /* Filter Action Buttons */

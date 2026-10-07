@@ -189,6 +189,13 @@ const els = {
   wlGeminiOppEmptyResetBtn: document.getElementById("wlGeminiOppEmptyResetBtn"),
   wlGeminiOppEmptyRefreshBtn: document.getElementById("wlGeminiOppEmptyRefreshBtn"),
   wlGeminiDisclaimer: document.getElementById("wlGeminiDisclaimer"),
+  // Focus trades filter bar
+  wlGeminiFocusFilterBar: document.getElementById("wlGeminiFocusFilterBar"),
+  wlGeminiFocusApplyBtn: document.getElementById("wlGeminiFocusApplyBtn"),
+  wlGeminiFocusResetBtn: document.getElementById("wlGeminiFocusResetBtn"),
+  wlGeminiFocusResultsBar: document.getElementById("wlGeminiFocusResultsBar"),
+  wlGeminiFocusResultsCount: document.getElementById("wlGeminiFocusResultsCount"),
+  wlGeminiFocusActiveChips: document.getElementById("wlGeminiFocusActiveChips"),
 };
 
 // ---------------------------------------------------------------------------
@@ -3328,6 +3335,93 @@ let allMarketOpportunitiesPool = [];
 let isOppRefreshing = false;
 let oppFetchAbortController = null;
 
+// ---------------------------------------------------------------------------
+// Focus Trades Filter State
+// ---------------------------------------------------------------------------
+let allFocusTradesPool = [];
+let appliedFocusFilters = { risk: [], confidence: [], rating: [] };
+let pendingFocusFilters = { risk: [], confidence: [], rating: [] };
+
+function normalizeFocusItem(t) {
+  // Normalize trade item fields to match OpportunityFilters expectations
+  const rating = (t.rating || "Watch").trim();
+  let confidence = (t.confidence || t.confidence_level || "Medium").trim();
+  if (confidence.toUpperCase() === "MODERATE") confidence = "Medium";
+  const risk = (t.risk_level || "Moderate").trim();
+  return { ...t, rating, confidence, risk_level: risk };
+}
+
+function updateFocusFilterUIState() {
+  if (els.wlGeminiFocusFilterBar) {
+    const chips = els.wlGeminiFocusFilterBar.querySelectorAll(".wl-opp-chip");
+    chips.forEach((chip) => {
+      const group = chip.dataset.group;
+      const val = chip.dataset.value;
+      const isSelected = !!(group && val && pendingFocusFilters[group]?.includes(val));
+      chip.setAttribute("aria-pressed", isSelected ? "true" : "false");
+    });
+  }
+
+  if (els.wlGeminiFocusApplyBtn) {
+    const isDirty = window.OpportunityFilters
+      ? !window.OpportunityFilters.areFiltersEqual(pendingFocusFilters, appliedFocusFilters)
+      : JSON.stringify(pendingFocusFilters) !== JSON.stringify(appliedFocusFilters);
+    els.wlGeminiFocusApplyBtn.disabled = !isDirty;
+    els.wlGeminiFocusApplyBtn.classList.toggle("is-dirty", isDirty);
+    const n = window.OpportunityFilters ? window.OpportunityFilters.countSelectedFilters(pendingFocusFilters) : 0;
+    const labelSpan = els.wlGeminiFocusApplyBtn.querySelector(".wl-opp-btn-apply-label");
+    const labelText = n > 0 ? `Apply (${n})` : "Apply Filters";
+    if (labelSpan) labelSpan.textContent = labelText;
+    else els.wlGeminiFocusApplyBtn.textContent = labelText;
+  }
+}
+
+function renderFocusResultsBar() {
+  if (!els.wlGeminiFocusResultsCount) return;
+  const filtered = window.OpportunityFilters
+    ? window.OpportunityFilters.filterOpportunities(allFocusTradesPool.map(normalizeFocusItem), appliedFocusFilters)
+    : allFocusTradesPool;
+  const total = allFocusTradesPool.length;
+  els.wlGeminiFocusResultsCount.textContent = `Showing ${filtered.length} of ${total} setups`;
+
+  if (els.wlGeminiFocusActiveChips) {
+    const activeChipsHtml = [];
+    ["risk", "confidence", "rating"].forEach((group) => {
+      const vals = appliedFocusFilters[group] || [];
+      vals.forEach((v) => {
+        activeChipsHtml.push(
+          `<button type="button" class="wl-opp-active-chip wl-opp-active-chip-remove" data-group="${group}" data-value="${v}" aria-label="Remove ${v} filter">` +
+            `${v} <span aria-hidden="true">×</span>` +
+          `</button>`
+        );
+      });
+    });
+    els.wlGeminiFocusActiveChips.innerHTML = activeChipsHtml.join("");
+    els.wlGeminiFocusActiveChips.querySelectorAll(".wl-opp-active-chip-remove").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const grp = btn.dataset.group;
+        const val = btn.dataset.value;
+        if (window.OpportunityFilters) {
+          appliedFocusFilters = window.OpportunityFilters.removeFilterOption(appliedFocusFilters, grp, val);
+          pendingFocusFilters = window.OpportunityFilters.cloneFilterState(appliedFocusFilters);
+        } else {
+          appliedFocusFilters[grp] = (appliedFocusFilters[grp] || []).filter((x) => x !== val);
+          pendingFocusFilters = JSON.parse(JSON.stringify(appliedFocusFilters));
+        }
+        updateFocusFilterUIState();
+        const filteredTrades = window.OpportunityFilters
+          ? window.OpportunityFilters.filterOpportunities(allFocusTradesPool.map(normalizeFocusItem), appliedFocusFilters)
+          : allFocusTradesPool;
+        renderFocusTradeCards(filteredTrades);
+        renderFocusResultsBar();
+      });
+    });
+  }
+
+  const hasActive = Object.values(appliedFocusFilters).some((a) => a.length > 0);
+  if (els.wlGeminiFocusResultsBar) els.wlGeminiFocusResultsBar.hidden = !hasActive && filtered.length === total;
+}
+
 function matchesOppFilters(opp, filters) {
   if (window.OpportunityFilters && typeof window.OpportunityFilters.matchesFilters === "function") {
     return window.OpportunityFilters.matchesFilters(opp, filters);
@@ -3680,6 +3774,62 @@ async function fetchWatchlistBriefing(forceRefresh = false) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Render focus trade cards (called by filter apply and on initial load)
+// ---------------------------------------------------------------------------
+function renderFocusTradeCards(trades) {
+  if (!els.wlGeminiFocusGrid) return;
+  if (!trades || !trades.length) {
+    els.wlGeminiFocusGrid.innerHTML = `<div class="empty-cell">No setups match the selected filters.</div>`;
+    return;
+  }
+  els.wlGeminiFocusGrid.innerHTML = trades.map((t) => {
+    const rating = (t.rating || "WATCH").toUpperCase();
+    const risk = (t.risk_level || "MODERATE").toUpperCase();
+
+    let confGrade = (t.confidence || t.confidence_level || "").toUpperCase();
+    const rawScore = t.confidence_score;
+    let pct = null;
+    if (typeof rawScore === "number" && !isNaN(rawScore)) {
+      pct = Math.round(rawScore <= 1 ? rawScore * 100 : rawScore);
+    }
+    if (!confGrade) {
+      confGrade = pct !== null ? (pct >= 75 ? "HIGH" : pct >= 50 ? "MEDIUM" : "LOW") : "MEDIUM";
+    } else if (confGrade === "MODERATE") {
+      confGrade = "MEDIUM";
+    }
+    if (pct === null) {
+      pct = confGrade === "HIGH" ? 85 : confGrade === "LOW" ? 40 : 65;
+    }
+
+    return `
+      <div class="wl-gemini-focus-card">
+        <div class="wl-gemini-focus-header">
+          <button type="button" class="wl-gemini-ticker-link" data-ticker="${escapeHtml(t.ticker || '')}" title="Analyze ${escapeHtml(t.ticker || '')}">${escapeHtml(t.ticker || "—")}</button>
+          <span class="wl-gemini-focus-rating rating-${rating.toLowerCase()}">${escapeHtml(rating)}</span>
+        </div>
+        <span class="wl-gemini-focus-setup">${escapeHtml(t.setup_type || "Setup Observation")}</span>
+        <p class="wl-gemini-focus-rationale">${escapeHtml(t.rationale || "")}</p>
+        <div class="wl-gemini-focus-footer">
+          <span class="wl-gemini-focus-timing">⏱ ${escapeHtml(t.timing_note || "Observational")}</span>
+          <div class="wl-gemini-focus-tags">
+            <span class="wl-gemini-tag wl-gemini-tag-risk risk-${risk.toLowerCase()}">Risk: <strong>${escapeHtml(risk)}</strong></span>
+            <span class="wl-gemini-tag wl-gemini-tag-conf conf-${confGrade.toLowerCase()}" title="Certainty Score: ${pct}%">Conf: <strong>${escapeHtml(confGrade)} (${pct}%)</strong></span>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  // Re-wire ticker links after re-render
+  els.wlGeminiFocusGrid.querySelectorAll(".wl-gemini-ticker-link").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const ticker = btn.dataset.ticker;
+      if (ticker) openGeminiModal(ticker);
+    });
+  });
+}
+
 function renderWatchlistBriefing(data) {
   if (!data) return;
 
@@ -3739,51 +3889,21 @@ function renderWatchlistBriefing(data) {
 
   if (els.wlGeminiFocusGrid) {
     const trades = Array.isArray(data.focus_trades) ? data.focus_trades : [];
-    if (!trades.length) {
-      els.wlGeminiFocusGrid.innerHTML = `<div class="empty-cell">No standout focus setups identified.</div>`;
+    // Store pool and show filter bar if we have trades
+    if (trades.length > 0) {
+      allFocusTradesPool = trades;
+      if (els.wlGeminiFocusFilterBar) els.wlGeminiFocusFilterBar.hidden = false;
+      updateFocusFilterUIState();
+      const filteredTrades = window.OpportunityFilters
+        ? window.OpportunityFilters.filterOpportunities(allFocusTradesPool.map(normalizeFocusItem), appliedFocusFilters)
+        : allFocusTradesPool;
+      renderFocusTradeCards(filteredTrades);
+      renderFocusResultsBar();
     } else {
-      els.wlGeminiFocusGrid.innerHTML = trades.map((t) => {
-        const rating = (t.rating || "WATCH").toUpperCase();
-        const risk = (t.risk_level || "MODERATE").toUpperCase();
-
-        // Calculate confidence grade and certainty percentage
-        let confGrade = (t.confidence || t.confidence_level || "").toUpperCase();
-        const rawScore = t.confidence_score;
-        let pct = null;
-        if (typeof rawScore === "number" && !isNaN(rawScore)) {
-          pct = Math.round(rawScore <= 1 ? rawScore * 100 : rawScore);
-        }
-        if (!confGrade) {
-          if (pct !== null) {
-            confGrade = pct >= 75 ? "HIGH" : pct >= 50 ? "MEDIUM" : "LOW";
-          } else {
-            confGrade = "MEDIUM";
-          }
-        } else if (confGrade === "MODERATE") {
-          confGrade = "MEDIUM";
-        }
-        if (pct === null) {
-          pct = confGrade === "HIGH" ? 85 : confGrade === "LOW" ? 40 : 65;
-        }
-
-        return `
-          <div class="wl-gemini-focus-card">
-            <div class="wl-gemini-focus-header">
-              <button type="button" class="wl-gemini-ticker-link" data-ticker="${escapeHtml(t.ticker || '')}" title="Analyze ${escapeHtml(t.ticker || '')}">${escapeHtml(t.ticker || "—")}</button>
-              <span class="wl-gemini-focus-rating rating-${rating.toLowerCase()}">${escapeHtml(rating)}</span>
-            </div>
-            <span class="wl-gemini-focus-setup">${escapeHtml(t.setup_type || "Setup Observation")}</span>
-            <p class="wl-gemini-focus-rationale">${escapeHtml(t.rationale || "")}</p>
-            <div class="wl-gemini-focus-footer">
-              <span class="wl-gemini-focus-timing">⏱ ${escapeHtml(t.timing_note || "Observational")}</span>
-              <div class="wl-gemini-focus-tags">
-                <span class="wl-gemini-tag wl-gemini-tag-risk risk-${risk.toLowerCase()}">Risk: <strong>${escapeHtml(risk)}</strong></span>
-                <span class="wl-gemini-tag wl-gemini-tag-conf conf-${confGrade.toLowerCase()}" title="Certainty Score: ${pct}%">Conf: <strong>${escapeHtml(confGrade)} (${pct}%)</strong></span>
-              </div>
-            </div>
-          </div>
-        `;
-      }).join("");
+      allFocusTradesPool = [];
+      if (els.wlGeminiFocusFilterBar) els.wlGeminiFocusFilterBar.hidden = true;
+      if (els.wlGeminiFocusResultsBar) els.wlGeminiFocusResultsBar.hidden = true;
+      els.wlGeminiFocusGrid.innerHTML = `<div class="empty-cell">No standout focus setups identified.</div>`;
     }
   }
 
@@ -4747,6 +4867,53 @@ if (els.wlGeminiOppEmptyRefreshBtn) {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Focus Trades Filter Event Listeners
+// ---------------------------------------------------------------------------
+if (els.wlGeminiFocusFilterBar) {
+  els.wlGeminiFocusFilterBar.querySelectorAll(".wl-opp-chip").forEach((chip) => {
+    chip.addEventListener("click", (e) => {
+      e.preventDefault();
+      const group = chip.dataset.group;
+      const val = chip.dataset.value;
+      if (!group || !val) return;
+      if (window.OpportunityFilters) {
+        pendingFocusFilters = window.OpportunityFilters.toggleFilterOption(pendingFocusFilters, group, val);
+      } else {
+        const arr = pendingFocusFilters[group] || [];
+        const idx = arr.indexOf(val);
+        pendingFocusFilters = { ...pendingFocusFilters, [group]: idx === -1 ? [...arr, val] : arr.filter((x) => x !== val) };
+      }
+      updateFocusFilterUIState();
+    });
+  });
+}
+
+if (els.wlGeminiFocusApplyBtn) {
+  els.wlGeminiFocusApplyBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    appliedFocusFilters = window.OpportunityFilters
+      ? window.OpportunityFilters.cloneFilterState(pendingFocusFilters)
+      : JSON.parse(JSON.stringify(pendingFocusFilters));
+    updateFocusFilterUIState();
+    const filtered = window.OpportunityFilters
+      ? window.OpportunityFilters.filterOpportunities(allFocusTradesPool.map(normalizeFocusItem), appliedFocusFilters)
+      : allFocusTradesPool;
+    renderFocusTradeCards(filtered);
+    renderFocusResultsBar();
+  });
+}
+
+if (els.wlGeminiFocusResetBtn) {
+  els.wlGeminiFocusResetBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    pendingFocusFilters = { risk: [], confidence: [], rating: [] };
+    appliedFocusFilters = { risk: [], confidence: [], rating: [] };
+    updateFocusFilterUIState();
+    renderFocusTradeCards(allFocusTradesPool);
+    renderFocusResultsBar();
+  });
+}
 
 if (els.wlGeminiCloseBtn) {
   els.wlGeminiCloseBtn.addEventListener("click", (e) => {
