@@ -4477,13 +4477,31 @@ body {
   flex-wrap: wrap;
 }
 
-/* Focus trades filter bar spacing */
-.wl-focus-filter-bar {
-  margin-bottom: 12px;
-  padding: 10px 12px;
+/* Focus trades section box — mirrors wl-gemini-opportunities-box */
+.wl-gemini-focus-section-box {
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
+  border-radius: 8px;
+  padding: 8px 12px 10px;
+  margin-bottom: 10px;
+}
+
+/* Section header row */
+.wl-gemini-focus-section-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 10px;
+}
+
+/* Focus trades filter bar spacing — sits inside the section box */
+.wl-focus-filter-bar {
+  margin-bottom: 10px;
+  padding: 8px 0 0;
+  background: transparent;
+  border: none;
+  border-top: 1px solid var(--border-subtle);
+  border-radius: 0;
 }
 
 .wl-opp-groups-row {

@@ -190,6 +190,8 @@ const els = {
   wlGeminiOppEmptyRefreshBtn: document.getElementById("wlGeminiOppEmptyRefreshBtn"),
   wlGeminiDisclaimer: document.getElementById("wlGeminiDisclaimer"),
   // Focus trades filter bar
+  wlGeminiFocusSectionBox: document.getElementById("wlGeminiFocusSectionBox"),
+  wlGeminiFocusSectionHeader: document.getElementById("wlGeminiFocusSectionHeader"),
   wlGeminiFocusFilterBar: document.getElementById("wlGeminiFocusFilterBar"),
   wlGeminiFocusApplyBtn: document.getElementById("wlGeminiFocusApplyBtn"),
   wlGeminiFocusResetBtn: document.getElementById("wlGeminiFocusResetBtn"),
@@ -3892,6 +3894,7 @@ function renderWatchlistBriefing(data) {
     // Store pool and show filter bar if we have trades
     if (trades.length > 0) {
       allFocusTradesPool = trades;
+      if (els.wlGeminiFocusSectionBox) els.wlGeminiFocusSectionBox.hidden = false;
       if (els.wlGeminiFocusFilterBar) els.wlGeminiFocusFilterBar.hidden = false;
       updateFocusFilterUIState();
       const filteredTrades = window.OpportunityFilters
@@ -3901,6 +3904,7 @@ function renderWatchlistBriefing(data) {
       renderFocusResultsBar();
     } else {
       allFocusTradesPool = [];
+      if (els.wlGeminiFocusSectionBox) els.wlGeminiFocusSectionBox.hidden = true;
       if (els.wlGeminiFocusFilterBar) els.wlGeminiFocusFilterBar.hidden = true;
       if (els.wlGeminiFocusResultsBar) els.wlGeminiFocusResultsBar.hidden = true;
       els.wlGeminiFocusGrid.innerHTML = `<div class="empty-cell">No standout focus setups identified.</div>`;
