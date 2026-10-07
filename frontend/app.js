@@ -3823,13 +3823,7 @@ function renderFocusTradeCards(trades) {
     `;
   }).join("");
 
-  // Re-wire ticker links after re-render
-  els.wlGeminiFocusGrid.querySelectorAll(".wl-gemini-ticker-link").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const ticker = btn.dataset.ticker;
-      if (ticker) openGeminiModal(ticker);
-    });
-  });
+  // Ticker-link wiring is handled at the end of renderWatchlistBriefing
 }
 
 function renderWatchlistBriefing(data) {
@@ -3891,11 +3885,9 @@ function renderWatchlistBriefing(data) {
 
   if (els.wlGeminiFocusGrid) {
     const trades = Array.isArray(data.focus_trades) ? data.focus_trades : [];
-    // Store pool and show filter bar if we have trades
+    // Store pool and render focus trades (filter bar always visible inside content wrap)
+    allFocusTradesPool = trades;
     if (trades.length > 0) {
-      allFocusTradesPool = trades;
-      if (els.wlGeminiFocusSectionBox) els.wlGeminiFocusSectionBox.hidden = false;
-      if (els.wlGeminiFocusFilterBar) els.wlGeminiFocusFilterBar.hidden = false;
       updateFocusFilterUIState();
       const filteredTrades = window.OpportunityFilters
         ? window.OpportunityFilters.filterOpportunities(allFocusTradesPool.map(normalizeFocusItem), appliedFocusFilters)
@@ -3903,9 +3895,6 @@ function renderWatchlistBriefing(data) {
       renderFocusTradeCards(filteredTrades);
       renderFocusResultsBar();
     } else {
-      allFocusTradesPool = [];
-      if (els.wlGeminiFocusSectionBox) els.wlGeminiFocusSectionBox.hidden = true;
-      if (els.wlGeminiFocusFilterBar) els.wlGeminiFocusFilterBar.hidden = true;
       if (els.wlGeminiFocusResultsBar) els.wlGeminiFocusResultsBar.hidden = true;
       els.wlGeminiFocusGrid.innerHTML = `<div class="empty-cell">No standout focus setups identified.</div>`;
     }

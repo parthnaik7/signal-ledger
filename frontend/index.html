@@ -361,8 +361,8 @@
           <p class="wl-gemini-overview-text" id="wlGeminiOverviewText">Evaluating watchlist trends...</p>
 
           <!-- Focus Trades Section -->
-          <div class="wl-gemini-focus-section-box" id="wlGeminiFocusSectionBox" hidden>
-            <!-- Section header -->
+          <div class="wl-gemini-focus-section-box" id="wlGeminiFocusSectionBox">
+            <!-- Section header (always visible when content is shown) -->
             <div class="wl-gemini-focus-section-header" id="wlGeminiFocusSectionHeader">
               <span class="wl-gemini-opp-title">
                 <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
@@ -371,8 +371,8 @@
               <span class="wl-gemini-opp-disclaimer">Filter by risk, confidence &amp; rating</span>
             </div>
 
-            <!-- Filter Bar -->
-          <div class="wl-opp-filters-card wl-focus-filter-bar" id="wlGeminiFocusFilterBar" hidden>
+            <!-- Filter Bar (shown when focus_trades exist) -->
+          <div class="wl-opp-filters-card wl-focus-filter-bar" id="wlGeminiFocusFilterBar">
             <div class="wl-opp-groups-row">
               <!-- Risk -->
               <fieldset class="wl-opp-group" data-filter-group="risk">
