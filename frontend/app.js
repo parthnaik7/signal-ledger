@@ -3838,7 +3838,18 @@ function renderFocusTradeCards(trades) {
     `;
   }).join("");
 
-  // Ticker-link wiring is handled at the end of renderWatchlistBriefing
+  // Wire up ticker-link clicks for all focus cards
+  els.wlGeminiFocusGrid.querySelectorAll(".wl-gemini-ticker-link").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      const ticker = btn.dataset.ticker;
+      if (!ticker) return;
+      els.ticker.value = ticker;
+      toggleWatchlistPanel(false);
+      handleFetch();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+  });
 }
 
 function renderWatchlistBriefing(data) {
@@ -4931,6 +4942,19 @@ if (els.wlGeminiCloseBtn) {
     }
   });
 }
+
+// Delegated click handler for all briefing ticker links (Focus Trades & Market Opportunities)
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest(".wl-gemini-ticker-link");
+  if (!btn) return;
+  e.preventDefault();
+  const ticker = btn.dataset.ticker;
+  if (!ticker) return;
+  els.ticker.value = ticker;
+  toggleWatchlistPanel(false);
+  handleFetch();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+});
 
 if (els.geminiRetryBtn) {
   els.geminiRetryBtn.addEventListener("click", (e) => {

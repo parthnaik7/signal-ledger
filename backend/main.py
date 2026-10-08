@@ -12,7 +12,6 @@ Everything under /  (besides /api/*) serves the static frontend.
 
 from __future__ import annotations
 
-import concurrent.futures
 
 import os
 import time
@@ -500,14 +499,29 @@ def analyze(
             return cached_val
 
     fetch_years = max(years, (months // 12) + 2)
-    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-        future_df = executor.submit(fetch_from_yahoo, clean_ticker, years_back=fetch_years)
-        future_meta = executor.submit(fetch_ticker_metadata_bundle, clean_ticker)
-        try:
-            df = future_df.result()
-        except DataFetchError as exc:
-            raise HTTPException(status_code=502, detail=str(exc)) from exc
-        meta = future_meta.result()
+
+    # Sequential fetching: eliminates SQLite cache contention that caused
+    # OperationalError / curl (27) crashes when both calls ran concurrently.
+    # fetch_from_yahoo is first because it's the critical path; if it fails
+    # we short-circuit immediately before spending time on metadata.
+    try:
+        df = fetch_from_yahoo(clean_ticker, years_back=fetch_years)
+    except DataFetchError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    try:
+        meta = fetch_ticker_metadata_bundle(clean_ticker)
+    except Exception as exc:
+        # Metadata is enrichment-only; degrade gracefully rather than 502.
+        logger.warning(f"fetch_ticker_metadata_bundle failed for {clean_ticker}: {exc}")
+        meta = {
+            "company_name": None,
+            "all_time_high": None,
+            "all_time_low": None,
+            "quote_details": None,
+            "similar_stocks": [],
+            "signal_review": None,
+        }
 
     result = _build_response(
         df,

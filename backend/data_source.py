@@ -25,6 +25,21 @@ logger = logging.getLogger("stock_ledger.data_source")
 
 try:
     import yfinance as yf
+    # Disable yfinance's internal SQLite timezone cache to prevent
+    # OperationalError (database locked / unable to open) when multiple
+    # worker threads call yf.download / yf.Ticker concurrently.
+    # Must be executed before the first yfinance network call.
+    try:
+        yf.set_tz_cache_off()
+    except AttributeError:
+        # Older yfinance versions: manually point the cache at /dev/null-like
+        # in-memory store so no SQLite file is ever opened.
+        try:
+            from yfinance import utils as _yf_utils
+            if hasattr(_yf_utils, "get_tz_cache"):
+                _yf_utils.get_tz_cache().reinit(None)  # type: ignore[attr-defined]
+        except Exception:
+            pass
 except ImportError:  # pragma: no cover - yfinance is a hard requirement in requirements.txt
     yf = None
 
@@ -147,12 +162,17 @@ def fetch_from_yahoo(ticker: str, years_back: int = 6) -> pd.DataFrame:
         except Exception as exc:
             logger.warning(f"yf.download attempt {attempt + 1}/{max_retries} failed for '{clean_ticker}': {exc}")
 
-        # If empty or failed, retry with session reset and jittered backoff
+        # Jittered backoff between retries. Only reset the session on the
+        # *last* failed attempt — resetting on every minor error thrashes the
+        # singleton connection pool and triggers curl (27) stream errors.
         if attempt < max_retries - 1:
-            session_manager.reset_session(reason=f"yf_download_attempt_{attempt + 1}")
             backoff = min(max_backoff, base_backoff * (2 ** attempt))
             sleep_s = random.uniform(backoff * 0.5, backoff)
             time.sleep(sleep_s)
+        else:
+            # Final attempt exhausted — rotate session once so the next
+            # caller gets a fresh cookie jar and crumb.
+            session_manager.reset_session(reason="yf_download_exhausted")
 
     # Fallback to stale cached data if live fetch was rate-limited
     stale = cache_manager.get_stale(cache_key)

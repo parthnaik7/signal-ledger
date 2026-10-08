@@ -243,8 +243,11 @@ class UnifiedSessionManager:
         """Closes the current session and creates a fresh connection pool and cookie jar."""
         with self._session_lock:
             now = time.time()
-            # Enforce 3-second cooldown debounce on automated reset triggers to prevent thrashing
-            if reason not in ("manual", "scheduled_rotation") and (now - self._created_at < 3.0):
+            # Enforce 10-second cooldown on automated resets to prevent session thrashing.
+            # Concurrent workers can trigger dozens of resets per second on a burst of
+            # network errors; the debounce collapses them into a single rotation.
+            if reason not in ("manual", "scheduled_rotation") and (now - self._created_at < 10.0):
+                logger.debug(f"reset_session debounced (reason={reason}, age={(now - self._created_at):.1f}s)")
                 return
             self._reset_count += 1
             if self._session is not None:
@@ -333,7 +336,10 @@ class UnifiedSessionManager:
                     f"Request exception on {url}: {exc}. "
                     f"Attempt {attempt + 1}/{max_retries}. Waiting {sleep_time:.2f}s..."
                 )
-                self.reset_session(reason="network_exception")
+                # Only rotate the session after the second consecutive failure
+                # to avoid tearing down a healthy pool on a single transient blip.
+                if attempt >= 1:
+                    self.reset_session(reason="network_exception")
                 time.sleep(sleep_time)
 
         return last_resp
