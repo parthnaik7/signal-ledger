@@ -723,8 +723,26 @@ function buildMetricsRow(m, ticker = "") {
         <span class="wl-metric-label">Move AT</span>
         ${moveAll != null ? `<span class="wl-pill wl-pill--pos">+${formatPct(moveAll)}</span>` : `<span class="wl-metric-val">—</span>`}
       </div>
+      ${buildConsensusSummaryCell({ metrics: m })}
       ${refreshed}
     </div>`;
+}
+
+function buildConsensusSummaryCell(item) {
+  if (typeof WatchlistFilters === "undefined" || !WatchlistFilters.getConsensusSummary) return "";
+  const cs = WatchlistFilters.getConsensusSummary(item);
+  if (!cs) return "";
+  const labelMap = { BUY: "wl-pill--pos", SELL: "wl-pill--neg", HOLD: "" };
+  const pillCls = labelMap[cs.label] || "";
+  const scorePart = cs.score ? ` ${cs.score}` : "";
+  const countPart = cs.analystCount ? ` · ${cs.analystCount}` : "";
+  const tooltip = `Analyst consensus: ${cs.label}${scorePart}/5.0${countPart} analysts`;
+  return `<div class="wl-metric-cell wl-consensus-cell" title="${escapeHtml(tooltip)}" aria-label="${escapeHtml(tooltip)}">
+    <span class="wl-metric-label">Consensus</span>
+    <span class="wl-pill ${pillCls} wl-consensus-label" role="img" aria-label="${escapeHtml(cs.label)}">${cs.label}</span>
+    ${cs.score ? `<span class="wl-metric-val wl-consensus-score">${cs.score}</span>` : ""}
+    ${cs.analystCount ? `<span class="wl-consensus-count" aria-hidden="true">${cs.analystCount}a</span>` : ""}
+  </div>`;
 }
 
 /**
@@ -773,6 +791,33 @@ function updateWatchlistCardDOM(ticker, metrics, status = "success", errorMsg = 
       sigTag.className = `signal-tag signal-tag--sm signal-${sig.toLowerCase()}${metrics.signal_review ? " signal-tag--interactive" : ""}`;
       sigTag.title = metrics.signalReason || (metrics.signal_review ? "Click to view Signal Review" : "");
       sigTag.innerHTML = `<span class="signal-icon">${sig === "BUY" ? "▲" : sig === "SELL" ? "▼" : sig === "UNRATED" ? "—" : "●"}</span> ${sig}`;
+    }
+
+    // Update signalSummaryText in symbol view
+    const summaryText = (typeof WatchlistFilters !== "undefined" && WatchlistFilters.getSignalSummaryText)
+      ? WatchlistFilters.getSignalSummaryText({ metrics })
+      : (metrics.signal_review?.summary || metrics.signalReason || "");
+    const symbolEl = card.querySelector(".wl-symbol");
+    if (symbolEl && summaryText) {
+      symbolEl.title = summaryText;
+    }
+    const summaryEl = card.querySelector(".wl-signal-summary");
+    if (summaryEl) {
+      if (summaryText) {
+        summaryEl.textContent = summaryText;
+        summaryEl.title = summaryText;
+      } else {
+        summaryEl.remove();
+      }
+    } else if (summaryText) {
+      const leftEl = card.querySelector(".wl-left");
+      if (leftEl) {
+        const div = document.createElement("div");
+        div.className = "wl-signal-summary signal-summary-text";
+        div.title = summaryText;
+        div.textContent = summaryText;
+        leftEl.appendChild(div);
+      }
     }
 
     // Update metrics row
@@ -1036,19 +1081,28 @@ function renderWatchlistUI() {
   }
 
   // Filter by signal if active
-  const filteredList = wlSignalFilter === "all"
+  const signalFiltered = wlSignalFilter === "all"
     ? fullList
     : fullList.filter((w) => getWatchlistItemSignal(w) === wlSignalFilter);
 
+  // Apply Confidence & Risk filters with AND logic
+  const filteredList = (typeof WatchlistFilters !== "undefined" && WatchlistFilters.filterWatchlist)
+    ? WatchlistFilters.filterWatchlist(signalFiltered, wlConfRiskFilters)
+    : signalFiltered;
+
   if (filteredList.length === 0) {
+    const hasConfRisk = typeof countWlConfRiskFilters === "function" && countWlConfRiskFilters() > 0;
+    const emptyMsg = hasConfRisk || wlSignalFilter !== "all"
+      ? "No watchlist items match the active filters."
+      : `No stocks currently flagged with <strong>${escapeHtml(wlSignalFilter)}</strong> signal.`;
     container.innerHTML = `
       <div class="wl-empty">
         <svg class="wl-empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
           <circle cx="12" cy="12" r="10"></circle>
           <line x1="8" y1="12" x2="16" y2="12"></line>
         </svg>
-        <p>No stocks currently flagged with <strong>${escapeHtml(wlSignalFilter)}</strong> signal.<br>
-          <button type="button" class="btn btn-ghost-sm" id="wlResetFilterBtn" style="margin-top:10px; cursor:pointer;">Show All (${counts.all})</button>
+        <p>${emptyMsg}<br>
+          <button type="button" class="btn btn-ghost-sm" id="wlResetFilterBtn" style="margin-top:10px; cursor:pointer;">Reset Filters (${counts.all})</button>
         </p>
       </div>`;
     const resetBtn = document.getElementById("wlResetFilterBtn");
@@ -1056,6 +1110,10 @@ function renderWatchlistUI() {
       resetBtn.addEventListener("click", () => {
         wlSignalFilter = "all";
         saveWlFilter();
+        if (typeof WatchlistFilters !== "undefined") {
+          wlConfRiskFilters = WatchlistFilters.createInitialFilterState();
+          saveWlConfRiskFilters();
+        }
         renderWatchlistUI();
       });
     }
@@ -1068,15 +1126,20 @@ function renderWatchlistUI() {
     const safeTicker = escapeHtml(w.ticker);
     const safeCompany = escapeHtml(w.companyName || "");
     const hasReview = Boolean(w.metrics?.signal_review);
+    const summaryText = (typeof WatchlistFilters !== "undefined" && WatchlistFilters.getSignalSummaryText)
+      ? WatchlistFilters.getSignalSummaryText(w)
+      : (w.metrics?.signal_review?.summary || reason || "");
+    const safeSummary = escapeHtml(summaryText);
     return `
     <div class="wl-item" data-ticker="${safeTicker}">
       <div class="wl-top-row">
         <div class="wl-left">
-          <span class="wl-symbol">${safeTicker}</span>
+          <span class="wl-symbol"${summaryText ? ` title="${safeSummary}"` : ""}>${safeTicker}</span>
           <span class="signal-tag signal-tag--sm signal-${sig.toLowerCase()}${hasReview ? " signal-tag--interactive" : ""}" title="${escapeHtml(reason || (hasReview ? "Click to view Signal Review" : ""))}">
             <span class="signal-icon">${sig === "BUY" ? "▲" : sig === "SELL" ? "▼" : sig === "UNRATED" ? "—" : "●"}</span> ${sig}
           </span>
           ${w.companyName ? `<span class="wl-name">${safeCompany}</span>` : ""}
+          ${summaryText ? `<div class="wl-signal-summary signal-summary-text" title="${safeSummary}">${safeSummary}</div>` : ""}
         </div>
         <div class="wl-actions">
           <button class="wl-refresh-btn" data-ticker="${safeTicker}" title="Refresh ${safeTicker} data">↻</button>
@@ -1256,6 +1319,51 @@ function saveWlFilter() {
   } catch { /* ignore */ }
 }
 
+let wlConfRiskFilters = (function restoreWlConfRiskFilters() {
+  if (typeof WatchlistFilters !== "undefined" && WatchlistFilters.loadFromStorage) {
+    return WatchlistFilters.loadFromStorage();
+  }
+  return { confidence: [], risk: [] };
+})();
+
+function saveWlConfRiskFilters() {
+  if (typeof WatchlistFilters !== "undefined" && WatchlistFilters.saveToStorage) {
+    WatchlistFilters.saveToStorage(wlConfRiskFilters);
+  }
+}
+
+function countWlConfRiskFilters() {
+  if (typeof WatchlistFilters !== "undefined" && WatchlistFilters.countSelectedFilters) {
+    return WatchlistFilters.countSelectedFilters(wlConfRiskFilters);
+  }
+  return 0;
+}
+
+function updateConfRiskFilterButtons() {
+  const confButtons = document.querySelectorAll("#wlConfFilterBar [data-wlconf]");
+  confButtons.forEach((btn) => {
+    const val = btn.getAttribute("data-wlconf");
+    const active = Boolean(wlConfRiskFilters.confidence && wlConfRiskFilters.confidence.includes(val));
+    btn.classList.toggle("active", active);
+    btn.setAttribute("aria-pressed", active ? "true" : "false");
+  });
+
+  const riskButtons = document.querySelectorAll("#wlRiskFilterBar [data-wlrisk]");
+  riskButtons.forEach((btn) => {
+    const val = btn.getAttribute("data-wlrisk");
+    const active = Boolean(wlConfRiskFilters.risk && wlConfRiskFilters.risk.includes(val));
+    btn.classList.toggle("active", active);
+    btn.setAttribute("aria-pressed", active ? "true" : "false");
+  });
+
+  const resetAllBtn = document.getElementById("wlResetAllFiltersBtn");
+  if (resetAllBtn) {
+    const hasActiveSignal = wlSignalFilter !== "all";
+    const hasActiveConfRisk = countWlConfRiskFilters() > 0;
+    resetAllBtn.hidden = !(hasActiveSignal || hasActiveConfRisk);
+  }
+}
+
 function updateFilterButtons(counts) {
   const filterKeys = ["all", "BUY", "HOLD", "SELL"];
   filterKeys.forEach((key) => {
@@ -1272,6 +1380,7 @@ function updateFilterButtons(counts) {
       countEl.textContent = counts[key] ?? 0;
     }
   });
+  updateConfRiskFilterButtons();
 }
 
 function initWatchlistFilter() {
@@ -1291,6 +1400,46 @@ function initWatchlistFilter() {
       renderWatchlistUI();
     });
   });
+
+  // Confidence filter buttons
+  const confButtons = document.querySelectorAll("#wlConfFilterBar [data-wlconf]");
+  confButtons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const val = btn.getAttribute("data-wlconf");
+      if (typeof WatchlistFilters !== "undefined") {
+        wlConfRiskFilters = WatchlistFilters.toggleFilterOption(wlConfRiskFilters, "confidence", val);
+        saveWlConfRiskFilters();
+        renderWatchlistUI();
+      }
+    });
+  });
+
+  // Risk filter buttons
+  const riskButtons = document.querySelectorAll("#wlRiskFilterBar [data-wlrisk]");
+  riskButtons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const val = btn.getAttribute("data-wlrisk");
+      if (typeof WatchlistFilters !== "undefined") {
+        wlConfRiskFilters = WatchlistFilters.toggleFilterOption(wlConfRiskFilters, "risk", val);
+        saveWlConfRiskFilters();
+        renderWatchlistUI();
+      }
+    });
+  });
+
+  // Reset All button
+  const resetAllBtn = document.getElementById("wlResetAllFiltersBtn");
+  if (resetAllBtn) {
+    resetAllBtn.addEventListener("click", () => {
+      wlSignalFilter = "all";
+      saveWlFilter();
+      if (typeof WatchlistFilters !== "undefined") {
+        wlConfRiskFilters = WatchlistFilters.createInitialFilterState();
+        saveWlConfRiskFilters();
+      }
+      renderWatchlistUI();
+    });
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1328,6 +1477,28 @@ function getBestMoveAlltimePct(w) {
     return currentAnalysis.best_move_overall.pct_diff;
   }
   if (w.metrics?.best_move_alltime_pct != null) return w.metrics.best_move_alltime_pct;
+  return null;
+}
+
+function getTargetMedianPct(w) {
+  if (currentAnalysis && currentAnalysis.ticker === w.ticker) {
+    const curPt = currentAnalysis.signal_review?.price_targets;
+    const curMedian = curPt?.median ?? currentAnalysis.signal_review?.target_median ?? null;
+    const curCurrent = curPt?.current ?? currentAnalysis.latest_close ?? null;
+    if (curMedian != null && curCurrent != null && curCurrent > 0) {
+      return ((curMedian - curCurrent) / curCurrent) * 100;
+    }
+  }
+  if (typeof WatchlistFilters !== "undefined" && WatchlistFilters.getTargetMedianPct) {
+    return WatchlistFilters.getTargetMedianPct(w);
+  }
+  const m = w?.metrics;
+  const pt = m?.signal_review?.price_targets;
+  const median = pt?.median ?? m?.signal_review?.target_median ?? null;
+  const current = pt?.current ?? m?.latest_close ?? null;
+  if (median != null && current != null && current > 0) {
+    return ((median - current) / current) * 100;
+  }
   return null;
 }
 
@@ -1385,6 +1556,14 @@ function getSortedWatchlist() {
       if (bv === null) return -1;
       return wlSortDir * (av - bv);
     }
+    if (wlSortKey === "targetmedian") {
+      const av = getTargetMedianPct(a);
+      const bv = getTargetMedianPct(b);
+      if (av === null && bv === null) return 0;
+      if (av === null) return 1;
+      if (bv === null) return -1;
+      return wlSortDir * (av - bv);
+    }
     return 0;
   });
   return list;
@@ -1398,8 +1577,9 @@ const SORT_LABELS = {
   athigh: "AT High %",
   moveyear: "Best Move · Yr",
   moveall: "Best Move · AT %",
+  targetmedian: "Target Median %",
 };
-const SORT_KEYS = ["alpha", "low", "high", "atlow", "athigh", "moveyear", "moveall"];
+const SORT_KEYS = ["alpha", "low", "high", "atlow", "athigh", "moveyear", "moveall", "targetmedian"];
 
 function updateSortButtons() {
   const arrowUp = " ↑", arrowDown = " ↓";
@@ -1424,8 +1604,8 @@ function initWatchlistSort() {
         wlSortDir = wlSortDir === 1 ? -1 : 1;
       } else {
         wlSortKey = key;
-        // Default to descending (largest gain first) for Best Move sorts
-        wlSortDir = (key === "moveyear" || key === "moveall") ? -1 : 1;
+        // Default to descending (largest gain / upside first) for Best Move and Target Median sorts
+        wlSortDir = (key === "moveyear" || key === "moveall" || key === "targetmedian") ? -1 : 1;
       }
       saveWlSort();
       updateSortButtons();

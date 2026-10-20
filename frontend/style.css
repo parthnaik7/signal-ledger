@@ -2491,6 +2491,56 @@ body {
   box-shadow: 0 0 10px rgba(239, 68, 68, 0.25);
 }
 
+/* Confidence filter active states */
+.wl-filter-btn.wl-filter-conf-high.active {
+  background: rgba(16, 185, 129, 0.22);
+  border-color: #10B981;
+  color: #10B981;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.25);
+}
+.wl-filter-btn.wl-filter-conf-medium.active {
+  background: rgba(245, 158, 11, 0.22);
+  border-color: #F59E0B;
+  color: #F59E0B;
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.25);
+}
+.wl-filter-btn.wl-filter-conf-low.active {
+  background: rgba(239, 68, 68, 0.22);
+  border-color: #EF4444;
+  color: #EF4444;
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.25);
+}
+
+/* Risk filter active states */
+.wl-filter-btn.wl-filter-risk-low.active {
+  background: rgba(16, 185, 129, 0.22);
+  border-color: #10B981;
+  color: #10B981;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.25);
+}
+.wl-filter-btn.wl-filter-risk-moderate.active {
+  background: rgba(245, 158, 11, 0.22);
+  border-color: #F59E0B;
+  color: #F59E0B;
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.25);
+}
+.wl-filter-btn.wl-filter-risk-high.active {
+  background: rgba(239, 68, 68, 0.22);
+  border-color: #EF4444;
+  color: #EF4444;
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.25);
+}
+
+/* Reset All button */
+.wl-filter-btn.wl-filter-reset-all {
+  border-color: var(--border-strong);
+  color: var(--text-secondary);
+}
+.wl-filter-btn.wl-filter-reset-all:hover {
+  border-color: #EF4444;
+  color: #EF4444;
+}
+
 .wl-filter-count {
   font-family: var(--font-mono);
   font-size: 10px;
@@ -2782,6 +2832,19 @@ body {
   margin-top: 2px;
 }
 
+.wl-signal-summary {
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--text-muted);
+  margin-top: 3px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 480px;
+}
+
 .wl-actions {
   display: flex;
   align-items: center;
@@ -2923,6 +2986,26 @@ body {
 .wl-pill--neg {
   background: rgba(239, 68, 68, 0.13);
   color: #EF4444;
+}
+
+/* Consensus summary chip */
+.wl-consensus-cell {
+  border: 1px solid var(--border-subtle);
+  cursor: default;
+}
+.wl-consensus-label {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+.wl-consensus-score {
+  font-size: 11px;
+}
+.wl-consensus-count {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
 }
 
 .wl-refreshed {

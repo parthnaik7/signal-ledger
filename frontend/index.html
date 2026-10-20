@@ -277,6 +277,21 @@
             <span class="signal-icon">▼</span> SELL <span class="wl-filter-count" id="wlCountSell">0</span>
           </button>
         </div>
+        <!-- Confidence Level Filter Bar -->
+        <div class="wl-filter-bar" id="wlConfFilterBar" role="group" aria-label="Filter stocks by confidence level">
+          <span class="wl-control-label">Confidence:</span>
+          <button type="button" class="wl-filter-btn wl-filter-conf-high" data-wlconf="High" id="wlConfHigh" aria-pressed="false" title="High confidence signals">High</button>
+          <button type="button" class="wl-filter-btn wl-filter-conf-medium" data-wlconf="Medium" id="wlConfMedium" aria-pressed="false" title="Medium confidence signals">Medium</button>
+          <button type="button" class="wl-filter-btn wl-filter-conf-low" data-wlconf="Low" id="wlConfLow" aria-pressed="false" title="Low confidence signals">Low</button>
+        </div>
+        <!-- Risk Level Filter Bar -->
+        <div class="wl-filter-bar" id="wlRiskFilterBar" role="group" aria-label="Filter stocks by risk level">
+          <span class="wl-control-label">Risk:</span>
+          <button type="button" class="wl-filter-btn wl-filter-risk-low" data-wlrisk="Low" id="wlRiskLow" aria-pressed="false" title="Low risk signals">Low</button>
+          <button type="button" class="wl-filter-btn wl-filter-risk-moderate" data-wlrisk="Moderate" id="wlRiskModerate" aria-pressed="false" title="Moderate risk signals">Moderate</button>
+          <button type="button" class="wl-filter-btn wl-filter-risk-high" data-wlrisk="High" id="wlRiskHigh" aria-pressed="false" title="High risk signals">High</button>
+          <button type="button" class="wl-filter-btn wl-filter-reset-all" id="wlResetAllFiltersBtn" aria-label="Reset all watchlist filters" title="Clear all filters" hidden>Reset All</button>
+        </div>
         <!-- Sort bar -->
         <div class="wl-sort-bar" id="watchlistSortBar">
           <span class="wl-control-label">Sort:</span>
@@ -287,6 +302,7 @@
           <button type="button" class="wl-sort-btn" data-sort="athigh" id="wlSortAthigh">AT High %</button>
           <button type="button" class="wl-sort-btn" data-sort="moveyear" id="wlSortMoveyear" title="Sort by Best Move · Year %">Best Move · Yr</button>
           <button type="button" class="wl-sort-btn" data-sort="moveall" id="wlSortMoveall" title="Sort by Best Move · All-Time %">Best Move · AT %</button>
+          <button type="button" class="wl-sort-btn" data-sort="targetmedian" id="wlSortTargetmedian" title="Sort by Target Median %">Target Median %</button>
         </div>
       </div>
       <!-- Watchlist Refresh Progress Panel -->
@@ -1363,6 +1379,7 @@
 
   </div>
 
+  <script src="watchlistFilters.js"></script>
   <script src="opportunityFilters.js"></script>
   <script src="app.js"></script>
 </body>
